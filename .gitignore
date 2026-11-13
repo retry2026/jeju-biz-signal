@@ -1,0 +1,24 @@
+# 비밀 정보
+.env
+.env.*
+!.env.example
+
+# DuckDB 파일 (앱 시작 시 data/sql로 다시 만든다)
+*.duckdb
+*.duckdb.wal
+
+# 빌드 결과
+backend/target/
+backend/src/main/resources/static/
+frontend/dist/
+node_modules/
+
+# IDE, OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
