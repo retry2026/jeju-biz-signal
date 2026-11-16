@@ -11,3 +11,4 @@
 | 2026-11-16 | ② | Copilot SDK | 지표 명세에 TouristFlow, 표본 확장·seasonalRange, 공식 출처 규칙 보완 |
 | 2026-11-16 | ② | Copilot SDK | AreaCustomerMetric 손계산 테스트·월별 집계 및 관광객 흐름 구현 |
 | 2026-11-16 | ② | Copilot SDK | ChartAssembler 차트 DTO·7종 조립 및 매출 전년 동월 비교 구현 |
+| 2026-11-16 | ② | Copilot SDK in VS Code | 시나리오 A/B/C 정답 SQL과 DuckDB 문법·반환 형태 검증 테스트 |
