@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -14,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 import kr.jeju.agent.chart.ChartAssembler;
 import kr.jeju.agent.metric.AreaCustomerMetric;
@@ -34,10 +38,18 @@ public class AgentConfig {
 
     @Bean
     LlmGateway llmGateway(ObjectProvider<ChatModel> chatModel, ChatMemory chatMemory,
-            @Value("${app.llm.timeout-seconds:50}") long timeoutSeconds) {
+            @Value("${app.llm.timeout-seconds:50}") long timeoutSeconds,
+            @Value("${spring.ai.google.genai.chat.model:}") String primaryModel,
+            @Value("${app.llm.fallback-models:}") List<String> fallbackModels) {
         ChatModel model = chatModel.getIfAvailable();
-        return model == null ? new NoLlmGateway()
-                : new SpringAiLlmGateway(ChatClient.create(model), chatMemory, Duration.ofSeconds(timeoutSeconds));
+        if (model == null) {
+            return new NoLlmGateway();
+        }
+        // 기본 모델이 할당량 초과(429)나 과부하(503)로 실패하면 예비 모델로 넘어간다.
+        List<String> models = new ArrayList<>();
+        models.add(primaryModel);
+        models.addAll(fallbackModels);
+        return new SpringAiLlmGateway(ChatClient.create(model), chatMemory, Duration.ofSeconds(timeoutSeconds), models);
     }
 
     @Bean
@@ -48,9 +60,19 @@ public class AgentConfig {
     @Bean
     ChatAgent chatAgent(LlmGateway llmGateway, CompetitionMetric competition, AreaCustomerMetric areaCustomers,
             IndustryTourismMetric industryTourism, ChartAssembler chartAssembler,
-            @Value("${app.llm.max-tool-calls:6}") int maxToolCalls) {
+            @Value("${app.llm.max-tool-calls:6}") int maxToolCalls, JdbcClient jdbc) {
         return new AgentService(llmGateway, competition, areaCustomers, industryTourism, chartAssembler,
-                prompt("system.md") + "\n\n" + prompt("refusal.md"), maxToolCalls);
+                prompt("system.md") + "\n\n" + prompt("refusal.md"), maxToolCalls, code -> areaName(jdbc, code));
+    }
+
+    /** 답변에 "해당 동네" 대신 지역 이름을 쓰도록 코드를 이름으로 바꾼다. 데이터가 없으면 null. */
+    static String areaName(JdbcClient jdbc, String code) {
+        try {
+            return jdbc.sql("SELECT MIN(emd_name) FROM ref_area WHERE emd_code = ?").param(code)
+                    .query(String.class).optional().orElse(null);
+        } catch (DataAccessException e) {
+            return null;
+        }
     }
 
     static String prompt(String name) {

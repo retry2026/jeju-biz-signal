@@ -52,6 +52,7 @@ class AreaCustomerMetricTest {
         assertThat(result.residentShare()).isEqualTo(30.0);
         assertThat(result.domesticShare()).isEqualTo(60.0);
         assertThat(result.foreignShare()).isEqualTo(10.0);
+        assertThat(result.touristShare()).isEqualTo(70.0);
         assertThat(result.residentTicket()).isEqualTo(10_000L);
         assertThat(result.touristTicket()).isEqualTo(28_000L);
     }

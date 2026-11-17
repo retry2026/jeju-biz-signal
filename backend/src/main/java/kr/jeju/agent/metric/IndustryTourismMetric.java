@@ -136,6 +136,8 @@ public class IndustryTourismMetric {
         double residentShare = percent(amountsByUserType.getOrDefault("RESIDENT", 0L), nonCorporateTotal);
         double domesticShare = percent(amountsByUserType.getOrDefault("DOMESTIC", 0L), nonCorporateTotal);
         double foreignShare = percent(foreignTotal, nonCorporateTotal);
+        double touristShare = percent(
+                Math.addExact(amountsByUserType.getOrDefault("DOMESTIC", 0L), foreignTotal), nonCorporateTotal);
         Map<String, Double> foreignByCountry = foreignShares(amountsByUserType, foreignTotal);
         List<MonthlyPoint> seasonIndex = seasonIndex(industry, startYm, latestYm.toString(), months);
         Double ticketYoy = ticketYoy(industry, latestMonth);
@@ -153,6 +155,7 @@ public class IndustryTourismMetric {
                 residentShare,
                 domesticShare,
                 foreignShare,
+                touristShare,
                 foreignByCountry,
                 seasonIndex,
                 ticketYoy,

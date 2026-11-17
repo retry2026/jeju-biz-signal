@@ -9,6 +9,7 @@ public record IndustryTourismResult(
         double residentShare,
         double domesticShare,
         double foreignShare,
+        double touristShare,
         Map<String, Double> foreignByCountry,
         List<MonthlyPoint> seasonIndex,
         Double ticketYoy,

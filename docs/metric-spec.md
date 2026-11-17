@@ -41,6 +41,7 @@ API 계약은 `docs/API명세.md` 4~5장을 따른다. 지표는 명시된 뷰�
 
 - 사용 뷰: `v_industry_spend`만 사용한다. 요청 업종의 데이터를 최신 `ym` 기준 `months`개월로 집계한다. `months`는 양수여야 하며 기본 분석 기간은 12개월이다.
 - `residentShare`, `domesticShare`, `foreignShare`는 기간 내 `amount` 합계로 계산한다. 분모는 `CORP`를 제외한 전체 결제액, 분자는 각각 `RESIDENT`, `DOMESTIC`, 그리고 `CHINA`, `JAPAN`, `SEA`, `OTHER` 합계다.
+- `touristShare`는 `DOMESTIC`과 외국인 합계를 더한 결제액의 비중이다. LLM이 두 비중을 직접 더하지 않도록 따로 돌려준다.
 - `foreignByCountry`는 외국인 결제액 합계를 분모로 각 국가 코드의 비중을 계산한다. 외국인 결제액이 0이면 네 국가 값은 각각 `null`이다.
 - 기간에 `RESIDENT`, `DOMESTIC`, 또는 외국인 국가 코드 행이 하나도 없어 primitive 비중을 계산할 입력을 구분할 수 없으면 명시적으로 예외를 던진다. 외국인 국가 중 개별 코드 행만 없는 경우 해당 `foreignByCountry` 값은 `null`이다.
 - 법인 제외 규칙은 비중 계산에 적용한다. 계절 지수와 건당 금액 증감률은 조회 기간의 전체 user type 행을 사용한다.

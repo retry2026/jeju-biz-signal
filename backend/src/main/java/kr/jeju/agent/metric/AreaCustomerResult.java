@@ -8,6 +8,7 @@ public record AreaCustomerResult(
         double residentShare,
         double domesticShare,
         double foreignShare,
+        double touristShare,
         double jejuAvgTouristShare,
         Long residentTicket,
         Long touristTicket,

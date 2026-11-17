@@ -61,6 +61,7 @@ class IndustryTourismMetricTest {
         assertThat(result.residentShare()).isEqualTo(50.0);
         assertThat(result.domesticShare()).isEqualTo(30.0);
         assertThat(result.foreignShare()).isEqualTo(20.0);
+        assertThat(result.touristShare()).isEqualTo(50.0);
         assertThat(result.foreignByCountry())
                 .containsEntry("CHINA", 60.0)
                 .containsEntry("JAPAN", 40.0);

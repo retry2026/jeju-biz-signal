@@ -20,6 +20,7 @@ import kr.jeju.agent.chart.ChartDataset;
  */
 public class EvalScorer {
 
+    private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}(?:-\\d{2})?");
     private static final Pattern NUMBER = Pattern.compile("-?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|-?\\d+(?:\\.\\d+)?");
 
     public QuestionScore score(EvalQuestion q, AgentAnswer answer, Map<String, Double> goldValues) {
@@ -41,7 +42,9 @@ public class EvalScorer {
         List<NumberResult> numberResults = new ArrayList<>();
         for (EvalQuestion.NumberCheck check : q.expect().numbers()) {
             Double gold = goldValues.get(check.gold());
-            boolean found = gold != null && textNumbers.stream().anyMatch(n -> Math.abs(n - gold) <= check.tolerance());
+            // "3.5% 줄었다"처럼 부호를 말로 쓰는 경우가 많아 절댓값으로도 비교한다.
+            boolean found = gold != null && textNumbers.stream().anyMatch(n -> Math.abs(n - gold) <= check.tolerance()
+                    || Math.abs(Math.abs(n) - Math.abs(gold)) <= check.tolerance());
             numberResults.add(new NumberResult(check.gold(), gold, found));
         }
 
@@ -49,7 +52,7 @@ public class EvalScorer {
         allowed.addAll(toolNumbers);
         List<Double> unsupported = textNumbers.stream()
                 .filter(n -> !ignorable(n))
-                .filter(n -> allowed.stream().noneMatch(a -> close(a, n)))
+                .filter(n -> allowed.stream().noneMatch(a -> close(a, n) || close(Math.abs(a), Math.abs(n))))
                 .toList();
 
         return new QuestionScore(q.id(), q.scenario(), q.expect().type(), answer.type(), typeOk, toolsOk,
@@ -64,7 +67,8 @@ public class EvalScorer {
 
     static List<Double> numbers(String text) {
         List<Double> numbers = new ArrayList<>();
-        Matcher m = NUMBER.matcher(text);
+        // "2025-09", "2026-10-16" 같은 기간 표기는 숫자로 세지 않는다 (-09를 음수로 읽는 오탐 방지).
+        Matcher m = NUMBER.matcher(DATE.matcher(text).replaceAll(" "));
         while (m.find()) {
             numbers.add(Double.parseDouble(m.group().replace(",", "")));
         }
@@ -79,6 +83,7 @@ public class EvalScorer {
             }
         }
         allowed.addAll(numbers(Objects.toString(request.message(), "")));
+        allowed.add(100.0); // 계절 지수의 기준값 "연평균 100"
         for (AgentRequest.MonthlySale sale : request.monthlySales()) {
             if (sale.amount() != null) {
                 allowed.add(sale.amount().doubleValue());
