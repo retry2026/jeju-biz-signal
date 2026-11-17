@@ -41,7 +41,9 @@ public class EvalScorer {
         List<NumberResult> numberResults = new ArrayList<>();
         for (EvalQuestion.NumberCheck check : q.expect().numbers()) {
             Double gold = goldValues.get(check.gold());
-            boolean found = gold != null && textNumbers.stream().anyMatch(n -> Math.abs(n - gold) <= check.tolerance());
+            // "3.5% 줄었다"처럼 부호를 말로 쓰는 경우가 많아 절댓값으로도 비교한다.
+            boolean found = gold != null && textNumbers.stream().anyMatch(n -> Math.abs(n - gold) <= check.tolerance()
+                    || Math.abs(Math.abs(n) - Math.abs(gold)) <= check.tolerance());
             numberResults.add(new NumberResult(check.gold(), gold, found));
         }
 
@@ -49,7 +51,7 @@ public class EvalScorer {
         allowed.addAll(toolNumbers);
         List<Double> unsupported = textNumbers.stream()
                 .filter(n -> !ignorable(n))
-                .filter(n -> allowed.stream().noneMatch(a -> close(a, n)))
+                .filter(n -> allowed.stream().noneMatch(a -> close(a, n) || close(Math.abs(a), Math.abs(n))))
                 .toList();
 
         return new QuestionScore(q.id(), q.scenario(), q.expect().type(), answer.type(), typeOk, toolsOk,

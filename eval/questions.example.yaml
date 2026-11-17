@@ -22,7 +22,7 @@
   scenario: B
   request:
     userType: EXISTING
-    area: "50110250"
+    area: "50110253"
     industry: CAFE
     message: "애월에서 카페 하는데 겨울만 되면 매출이 반토막 나요. 정상인가요?"
   expect:

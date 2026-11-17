@@ -72,6 +72,16 @@ class EvalScorerTest {
     }
 
     @Test
+    void 감소를_말로_쓰면_부호_없는_숫자도_정답으로_본다() {
+        QuestionScore s = scorer.score(
+                question("ANSWER", List.of(), List.of(new EvalQuestion.NumberCheck("Q01.sql", 0.5))),
+                answer("ANSWER", "동네 외식 결제는 전년보다 3.5% 줄었습니다.", List.of(), List.of()), Map.of("Q01.sql", -3.5));
+
+        assertThat(s.numbers()).allMatch(EvalScorer.NumberResult::found);
+        assertThat(s.unsupported()).isEmpty();
+    }
+
+    @Test
     void 쉼표가_있는_금액도_숫자로_읽는다() {
         assertThat(EvalScorer.numbers("건당 14,200원, -6.3%")).containsExactly(14200.0, -6.3);
     }

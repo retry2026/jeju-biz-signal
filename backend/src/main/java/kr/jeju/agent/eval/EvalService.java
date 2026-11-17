@@ -26,9 +26,17 @@ public class EvalService {
 
     private final EvalScorer scorer = new EvalScorer();
 
+    /** 실행 사이 대기(ms). 무료 LLM의 분당 요청 한도에 걸리지 않게 한다. */
+    private final long delayMs;
+
     public EvalService(ChatAgent agent, Function<String, Double> goldLookup) {
+        this(agent, goldLookup, 0);
+    }
+
+    public EvalService(ChatAgent agent, Function<String, Double> goldLookup, long delayMs) {
         this.agent = agent;
         this.goldLookup = goldLookup;
+        this.delayMs = delayMs;
     }
 
     public List<Run> run(List<EvalQuestion> questions, int repeat) {
@@ -39,10 +47,24 @@ public class EvalService {
                 gold.put(check.gold(), lookup(check.gold()));
             }
             for (int i = 1; i <= repeat; i++) {
+                if (!runs.isEmpty()) {
+                    pause();
+                }
                 runs.add(runOnce(q, i, gold));
             }
         }
         return runs;
+    }
+
+    private void pause() {
+        if (delayMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private Run runOnce(EvalQuestion q, int attempt, Map<String, Double> gold) {

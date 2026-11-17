@@ -16,6 +16,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -32,6 +34,8 @@ import kr.jeju.agent.agent.ChatAgent;
  */
 @Component
 @Profile("eval")
+// 데이터 적재(DataLoader)가 끝난 뒤에 돌아야 한다. 순서를 안 정하면 테이블이 없는 상태로 평가될 수 있다.
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class EvalRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(EvalRunner.class);
@@ -44,13 +48,15 @@ public class EvalRunner implements ApplicationRunner {
     private final Path resultsDir;
     private final int repeat;
     private final String model;
+    private final long delayMs;
 
     public EvalRunner(ChatAgent agent, JdbcTemplate jdbc, ApplicationContext context,
             @Value("${app.eval.questions:../eval/questions.yaml}") String questionsFile,
             @Value("${app.eval.gold-dir:../eval/gold}") String goldDir,
             @Value("${app.eval.results-dir:../eval/results}") String resultsDir,
             @Value("${app.eval.repeat:3}") int repeat,
-            @Value("${spring.ai.model.chat:none} / ${spring.ai.google.genai.chat.model:}") String model) {
+            @Value("${spring.ai.model.chat:none} / ${spring.ai.google.genai.chat.model:}") String model,
+            @Value("${app.eval.delay-ms:15000}") long delayMs) {
         this.agent = agent;
         this.jdbc = jdbc;
         this.context = context;
@@ -59,6 +65,7 @@ public class EvalRunner implements ApplicationRunner {
         this.resultsDir = Path.of(resultsDir);
         this.repeat = repeat;
         this.model = model;
+        this.delayMs = delayMs;
     }
 
     @Override
@@ -66,7 +73,7 @@ public class EvalRunner implements ApplicationRunner {
         List<EvalQuestion> questions = new EvalQuestionLoader().load(questionsFile);
         log.info("평가 시작: 질문 {}개 × {}회 ({})", questions.size(), repeat, questionsFile.toAbsolutePath());
 
-        List<EvalService.Run> runs = new EvalService(agent, this::gold).run(questions, repeat);
+        List<EvalService.Run> runs = new EvalService(agent, this::gold, delayMs).run(questions, repeat);
         EvalReport report = new EvalReport();
         String header = "- 실행 시각: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                 + "\n- 커밋: " + gitCommit()
