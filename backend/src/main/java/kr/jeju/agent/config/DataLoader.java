@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Component;
  * read_csv의 상대경로는 실행 위치에 따라 달라지므로 절대경로로 고정한다.
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class DataLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
