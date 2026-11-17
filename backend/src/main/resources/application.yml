@@ -10,8 +10,19 @@ app:
 spring:
   application:
     name: jeju-agent
+  config:
+    # 저장소 루트의 .env(커밋 안 됨)에 LLM_PROVIDER, LLM_API_KEY를 두면 읽는다. 파일이 없으면 무시한다.
+    import: optional:file:../.env[.properties]
   datasource:
     url: jdbc:duckdb:${app.data-dir}/jeju.duckdb
     driver-class-name: org.duckdb.DuckDBDriver
-  # LLM 공급자 설정은 공급자 starter를 정한 뒤 추가한다.
-  # 키는 반드시 ${LLM_API_KEY}, 모델은 ${LLM_MODEL:기본값}으로만 읽는다.
+  ai:
+    model:
+      # LLM 사용 여부. 키가 있을 때 LLM_PROVIDER=google-genai로 켠다.
+      # 기본값 none이면 LLM 없이 앱이 뜨고, 채팅은 503 LLM_UNAVAILABLE로 응답한다.
+      chat: ${LLM_PROVIDER:none}
+    google:
+      genai:
+        api-key: ${LLM_API_KEY:}
+        chat:
+          model: ${LLM_MODEL:gemini-3.8-flash}

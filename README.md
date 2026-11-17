@@ -15,8 +15,9 @@ Maven은 따로 설치하지 않아도 됩니다. `backend/mvnw`가 필요한 �
 
 | 이름 | 필수 | 설명 |
 |---|---|---|
-| `LLM_API_KEY` | 예 | LLM API 키 |
-| `LLM_MODEL` | 아니오 | 사용할 모델 이름 |
+| `LLM_PROVIDER` | 예 | `google-genai`로 설정하면 Gemini를 사용합니다. 설정하지 않으면 LLM 없이 실행되고 질문에는 답하지 않습니다 |
+| `LLM_API_KEY` | 예 | Gemini API 키 |
+| `LLM_MODEL` | 아니오 | 사용할 모델. 기본값 `gemini-3.8-flash` |
 | `DATA_DIR` | 아니오 | 데이터 폴더 경로. 기본값 `../data` (`backend` 폴더 기준) |
 
 `.env.example`에 이름 목록이 있습니다.
@@ -58,6 +59,16 @@ cd backend && java -jar target/jeju-agent.jar
 ```bash
 cd backend && ./mvnw test
 ```
+
+## 에이전트 평가
+
+평가 질문(`eval/questions.yaml`)을 모두 실행하고 결과를 `eval/results/`에 저장합니다. LLM 환경변수가 필요합니다.
+
+```bash
+cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=eval
+```
+
+질문 형식은 `eval/questions.example.yaml`을 참고합니다. 반복 횟수는 `--app.eval.repeat=1`처럼 바꿀 수 있습니다 (기본 3회).
 
 ## 기술 스택
 
