@@ -158,6 +158,7 @@ public class AreaCustomerMetric {
                 percent(areaTotals.residentAmount(), areaTotals.totalAmount()),
                 percent(areaTotals.domesticAmount(), areaTotals.totalAmount()),
                 percent(areaTotals.foreignAmount(), areaTotals.totalAmount()),
+                percent(areaTotals.touristAmount(), areaTotals.totalAmount()),
                 jejuAvgTouristShare,
                 ticket(areaTotals.residentAmount(), areaTotals.residentTxnCount()),
                 ticket(areaTotals.touristAmount(), areaTotals.touristTxnCount()),

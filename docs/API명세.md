@@ -357,6 +357,7 @@ public record AreaCustomerResult(
     double residentShare,        // 도민 결제액 비중 (%)
     double domesticShare,        // 내국인 관광객 비중 (%)
     double foreignShare,         // 외국인 관광객 비중 (%)
+    double touristShare,         // 관광객 합계 비중 (내국인 + 외국인, %)
     double jejuAvgTouristShare,  // 제주 43개 동 평균 관광객 비중 (%)
     Long residentTicket,         // 도민 건당 결제액 (원)
     Long touristTicket,          // 관광객 건당 결제액 (원)
@@ -388,6 +389,7 @@ public record IndustryTourismResult(
     double residentShare,                  // 제주도민 결제액 비중 (%)
     double domesticShare,                  // 내국인 (%)
     double foreignShare,                   // 외국인 합계 (%)
+    double touristShare,                   // 도외 내국인 + 외국인 (%)
     Map<String, Double> foreignByCountry,  // CHINA, JAPAN, SEA, OTHER → 외국인 중 비중 (%)
     List<MonthlyPoint> seasonIndex,        // 월별 지수, 연평균 = 100
     Double ticketYoy,                      // 건당 금액 전년 대비 (%)
