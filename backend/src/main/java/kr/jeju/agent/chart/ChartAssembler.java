@@ -1,0 +1,225 @@
+package kr.jeju.agent.chart;
+
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import kr.jeju.agent.metric.AreaCustomerResult;
+import kr.jeju.agent.metric.CompetitionResult;
+import kr.jeju.agent.metric.IndustryTourismResult;
+import kr.jeju.agent.metric.MetricMeta;
+import kr.jeju.agent.metric.MonthlyPoint;
+import kr.jeju.agent.metric.SeriesPoint;
+import kr.jeju.agent.metric.TouristFlow;
+
+public class ChartAssembler {
+
+    public List<Chart> build(List<String> chartIds, EvidenceSnapshot results) {
+        Objects.requireNonNull(chartIds, "chartIds");
+        Objects.requireNonNull(results, "results");
+
+        List<Chart> charts = new ArrayList<>();
+        for (String chartId : chartIds) {
+            if (charts.size() == 3) {
+                break;
+            }
+            Chart chart = buildChart(chartId, results);
+            if (chart != null) {
+                charts.add(chart);
+            }
+        }
+        return List.copyOf(charts);
+    }
+
+    private Chart buildChart(String chartId, EvidenceSnapshot results) {
+        return switch (chartId) {
+            case "customerMix" -> customerMix(results.areaCustomers());
+            case "areaMonthly" -> areaMonthly(results.areaCustomers());
+            case "ticketSize" -> ticketSize(results.areaCustomers());
+            case "touristFlow" -> touristFlow(results.areaCustomers());
+            case "industrySeason" -> industrySeason(results.industryTourism());
+            case "competition" -> competition(results.competition());
+            case "myStoreVsArea" -> myStoreVsArea(results.areaCustomers(), results.myStore());
+            default -> null;
+        };
+    }
+
+    private Chart customerMix(AreaCustomerResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new Chart(
+                "customerMix",
+                "doughnut",
+                "동네 손님 구성",
+                List.of("도민", "내국인 관광객", "외국인 관광객"),
+                List.of(new ChartDataset(
+                        "결제 비중",
+                        List.of(result.residentShare(), result.domesticShare(), result.foreignShare()),
+                        null
+                )),
+                "%",
+                source(result.meta(), result.meta().period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart areaMonthly(AreaCustomerResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new Chart(
+                "areaMonthly",
+                "line",
+                "동네 외식 결제 월별 추이",
+                result.residentMonthly().stream().map(MonthlyPoint::ym).toList(),
+                List.of(
+                        new ChartDataset("도민", values(result.residentMonthly()), null),
+                        new ChartDataset("관광객", values(result.touristMonthly()), null),
+                        new ChartDataset("제주 동 평균", values(result.jejuAvgMonthly()), true)
+                ),
+                "원",
+                source(result.meta(), result.meta().period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart ticketSize(AreaCustomerResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new Chart(
+                "ticketSize",
+                "bar",
+                "건당 결제액",
+                List.of("도민", "관광객"),
+                List.of(new ChartDataset(
+                        "건당 결제액",
+                        Arrays.asList(
+                                result.residentTicket() == null ? null : result.residentTicket().doubleValue(),
+                                result.touristTicket() == null ? null : result.touristTicket().doubleValue()
+                        ),
+                        null
+                )),
+                "원",
+                source(result.meta(), result.meta().period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart touristFlow(AreaCustomerResult result) {
+        if (result == null || result.touristFlow() == null) {
+            return null;
+        }
+        TouristFlow flow = result.touristFlow();
+        return new Chart(
+                "touristFlow",
+                "line",
+                "최근 4주 입도객 흐름",
+                flow.thisYear().stream().map(SeriesPoint::label).toList(),
+                List.of(
+                        new ChartDataset("올해", seriesValues(flow.thisYear()), null),
+                        new ChartDataset("작년", seriesValues(flow.lastYear()), null)
+                ),
+                "명",
+                source(result.meta(), flow.period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart industrySeason(IndustryTourismResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new Chart(
+                "industrySeason",
+                "line",
+                "업종 월별 계절 지수",
+                result.seasonIndex().stream().map(MonthlyPoint::ym).toList(),
+                List.of(new ChartDataset("계절 지수", values(result.seasonIndex()), null)),
+                "지수",
+                source(result.meta(), result.meta().period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart competition(CompetitionResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new Chart(
+                "competition",
+                "bar",
+                "동네 업종별 점포 수",
+                List.of("동네", "제주 평균"),
+                List.of(new ChartDataset(
+                        "점포 수",
+                        List.of((double) result.storeCount(), result.jejuAvg()),
+                        null
+                )),
+                "개",
+                source(result.meta(), result.meta().period()),
+                result.meta().scope()
+        );
+    }
+
+    private Chart myStoreVsArea(AreaCustomerResult area, MyStoreInput myStore) {
+        if (area == null || myStore == null || area.yoyChange() == null
+                || myStore.monthlySales() == null || myStore.monthlySales().isEmpty()) {
+            return null;
+        }
+        Double myStoreYoy = latestYearOverYear(myStore.monthlySales());
+        if (myStoreYoy == null) {
+            return null;
+        }
+        return new Chart(
+                "myStoreVsArea",
+                "bar",
+                "내 가게와 동네 전년 대비 변화",
+                List.of("내 가게", "동네 외식"),
+                List.of(new ChartDataset(
+                        "전년 대비 변화",
+                        List.of(myStoreYoy, round(area.yoyChange())),
+                        null
+                )),
+                "%",
+                source(area.meta(), area.meta().period()),
+                area.meta().scope()
+        );
+    }
+
+    private static Double latestYearOverYear(List<MonthlySale> monthlySales) {
+        Map<YearMonth, Long> amountsByMonth = new HashMap<>();
+        for (MonthlySale sale : monthlySales) {
+            amountsByMonth.put(YearMonth.parse(sale.month()), sale.amount());
+        }
+        return amountsByMonth.keySet().stream()
+                .filter(month -> amountsByMonth.containsKey(month.minusYears(1)))
+                .filter(month -> amountsByMonth.get(month.minusYears(1)) != 0)
+                .max(YearMonth::compareTo)
+                .map(month -> round(
+                        (amountsByMonth.get(month) / (double) amountsByMonth.get(month.minusYears(1)) - 1) * 100
+                ))
+                .orElse(null);
+    }
+
+    private static List<Double> values(List<MonthlyPoint> points) {
+        return points.stream().map(MonthlyPoint::value).toList();
+    }
+
+    private static List<Double> seriesValues(List<SeriesPoint> points) {
+        return points.stream().map(SeriesPoint::value).toList();
+    }
+
+    private static String source(MetricMeta meta, String period) {
+        return period == null ? meta.source() : meta.source() + " (" + period + ")";
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 10) / 10.0;
+    }
+}
