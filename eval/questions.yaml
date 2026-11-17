@@ -1,0 +1,443 @@
+# 평가 질문 30개 (① 소유)
+# 형식: docs/API명세.md 7장
+#
+# 구성: 답변 20 (ANSWER) + 거절·대안 5 (REFUSE) + 되묻기 5 (ASK_BACK)
+#
+# 만든 기준
+#  1. area는 ref_area의 행정동코드 8자리, industry는 ref_industry의 7개 코드만 쓴다.
+#     화면 드롭다운이 보내는 값과 같아야 하고, 없는 코드는 IllegalArgumentException이 된다.
+#  2. (지역 × 업종) 조합은 v_store에 점포가 25개 이상인 것만 골랐다.
+#     점포가 없는 조합을 물으면 지표가 아니라 입력 오류를 검증하게 된다.
+#  3. numbers가 붙은 문항은 eval/gold에 정답 SQL이 있는 조합으로만 맞췄다.
+#     gold 11개가 노형동·애월읍·연동·제주 전체 CAFE·KOREAN·입도객에 걸려 있어
+#     Q01~Q09가 그 조합을 쓴다. 나머지 답변 문항은 tools 호출만 검증한다.
+#  4. REFUSE 5개는 "데이터에 축 자체가 없는 질문"으로만 구성했다.
+#     시간대, 업력, 개별 점포 매출, 소득, 배달 구분은 S1~S4 어디에도 없다.
+#     없는 것을 지어내지 않는지 보는 문항이라 5개 모두 성격이 다르다.
+#  5. ASK_BACK 5개는 area·industry가 @NotBlank라 비울 수 없으므로
+#     message가 막연하거나(MESSAGE) 기존 사업자가 월매출을 안 낸 경우(MY_STORE)로 만들었다.
+#
+# tolerance 기준: 점포 수 0, 배수 0.1, 비율·지수·증감률 0.5
+
+# ── 답변 · 정답 SQL 대조 (Q01~Q09) ──────────────────────────────
+
+- id: Q01
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    myStore: null
+    message: "노형동에 카페를 차리려고 하는데 경쟁이 심한가요?"
+  expect:
+    type: ANSWER
+    tools: [competition]
+    numbers:
+      - gold: A_competition_store_count.sql
+        tolerance: 0
+      - gold: A_competition_density_ratio.sql
+        tolerance: 0.1
+
+- id: Q02
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    myStore: null
+    message: "노형동은 손님이 도민이 많나요, 관광객이 많나요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: A_resident_share.sql
+        tolerance: 0.5
+
+- id: Q03
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "애월에서 카페 하는데 손님 중 관광객 비중이 어느 정도인가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: B_tourist_share.sql
+        tolerance: 0.5
+
+- id: Q04
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "애월은 성수기와 비수기 차이가 얼마나 큰가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: B_food_seasonal_range.sql
+        tolerance: 0.5
+
+- id: Q05
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110660"
+    industry: CAFE
+    myStore: null
+    message: "1월에 카페 매출이 평소보다 많이 떨어지나요?"
+  expect:
+    type: ANSWER
+    tools: [industryTourism]
+    numbers:
+      - gold: B_cafe_january_season_index.sql
+        tolerance: 0.5
+
+- id: Q06
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "겨울만 되면 매출이 반토막 나요. 2월이 특히 심한가요?"
+  expect:
+    type: ANSWER
+    tools: [industryTourism]
+    numbers:
+      - gold: B_cafe_february_season_index.sql
+        tolerance: 0.5
+
+- id: Q07
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "요즘 제주 오는 관광객이 작년보다 줄었나요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: B_domestic_arrivals_yoy.sql
+        tolerance: 0.5
+      - gold: B_foreign_arrivals_yoy.sql
+        tolerance: 0.5
+
+- id: Q08
+  scenario: C
+  request:
+    userType: EXISTING
+    area: "50110660"
+    industry: KOREAN
+    myStore: null
+    message: "한식집인데 작년보다 손님 한 명당 결제 금액이 올랐나요?"
+  expect:
+    type: ANSWER
+    tools: [industryTourism]
+    numbers:
+      - gold: C_korean_ticket_yoy.sql
+        tolerance: 0.5
+
+- id: Q09
+  scenario: C
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: KOREAN
+    myStore:
+      monthlySales:
+        - { month: "2026-04", amount: 28000000 }
+        - { month: "2026-05", amount: 27000000 }
+        - { month: "2026-06", amount: 25500000 }
+        - { month: "2026-07", amount: 26000000 }
+        - { month: "2026-08", amount: 24500000 }
+        - { month: "2026-09", amount: 23800000 }
+    message: "연동에서 고깃집 하는데 매출이 계속 줄어요. 우리 가게 문제인가요, 동네 문제인가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: C_yeondong_food_yoy_change.sql
+        tolerance: 0.5
+
+# ── 답변 · 도구 선택만 검증 (Q10~Q20) ────────────────────────────
+
+- id: Q10
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110540"
+    industry: KOREAN
+    myStore: null
+    message: "이도2동에 한식집 차려도 괜찮을까요?"
+  expect:
+    type: ANSWER
+    tools: [competition]
+
+- id: Q11
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50130259"
+    industry: CAFE
+    myStore: null
+    message: "성산읍에 카페가 이미 많은가요?"
+  expect:
+    type: ANSWER
+    tools: [competition]
+
+- id: Q12
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110250"
+    industry: PUB
+    myStore: null
+    message: "한림읍에 술집을 열면 손님이 주로 누구일까요?"
+  expect:
+    type: ANSWER
+    tools: [competition, areaCustomers]
+
+- id: Q13
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110259"
+    industry: WESTERN
+    myStore: null
+    message: "조천읍에 양식집을 내려는데 수요가 있을까요?"
+  expect:
+    type: ANSWER
+    tools: [competition, areaCustomers]
+
+- id: Q14
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50130320"
+    industry: KOREAN
+    myStore: null
+    message: "표선면 한식 경쟁 상황이 제주 평균보다 심한가요?"
+  expect:
+    type: ANSWER
+    tools: [competition]
+
+- id: Q15
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110256"
+    industry: CAFE
+    myStore: null
+    message: "구좌읍 카페인데 관광객에 얼마나 기대고 있는 건가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+
+- id: Q16
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50130250"
+    industry: KOREAN
+    myStore: null
+    message: "대정읍 손님은 도민 위주인가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+
+- id: Q17
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: JAPANESE
+    myStore: null
+    message: "일식집인데 외국인 손님은 어느 나라가 많나요?"
+  expect:
+    type: ANSWER
+    tools: [industryTourism]
+
+- id: Q18
+  scenario: B
+  request:
+    userType: STARTUP
+    area: "50110253"
+    industry: WESTERN
+    myStore: null
+    message: "애월에 양식집을 내면 비수기를 버틸 수 있을까요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers, industryTourism]
+
+- id: Q19
+  scenario: C
+  request:
+    userType: EXISTING
+    area: "50110520"
+    industry: PUB
+    myStore: null
+    message: "일도2동 주점인데 동네 소비가 작년보다 줄었나요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+
+- id: Q20
+  scenario: C
+  request:
+    userType: EXISTING
+    area: "50110660"
+    industry: FASTFOOD
+    myStore:
+      monthlySales:
+        - { month: "2026-07", amount: 15000000 }
+        - { month: "2026-08", amount: 14200000 }
+        - { month: "2026-09", amount: 13800000 }
+    message: "노형동에서 분식 프랜차이즈 하는데 이 정도 매출이면 어떤가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers, competition]
+
+# ── 거절·대안 (Q21~Q25) ─────────────────────────────────────────
+# 전부 S1~S4에 축 자체가 없는 질문이다. 없는 숫자를 지어내지 않는지 본다.
+
+- id: Q21
+  scenario: REFUSE
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    myStore: null
+    message: "저녁 장사가 나을까요, 점심 장사가 나을까요?"
+  expect:
+    type: REFUSE
+    tools: []
+    # 근거: 시간대 축이 없다. S2는 월 단위, S3도 월 단위, S4는 일 단위다.
+
+- id: Q22
+  scenario: REFUSE
+  request:
+    userType: STARTUP
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "여기서 3년 이상 버틴 가게들은 뭐가 달랐나요?"
+  expect:
+    type: REFUSE
+    tools: []
+    # 근거: 개업일·업력 데이터가 없다. S1은 2025-09 스냅샷 한 장뿐이다.
+
+- id: Q23
+  scenario: REFUSE
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: KOREAN
+    myStore: null
+    message: "바로 옆 고깃집은 한 달에 얼마나 버나요?"
+  expect:
+    type: REFUSE
+    tools: []
+    # 근거: 개별 점포 매출이 없다. S2·S3 모두 집계값이고 점포 식별자가 없다.
+
+- id: Q24
+  scenario: REFUSE
+  request:
+    userType: STARTUP
+    area: "50110540"
+    industry: WESTERN
+    myStore: null
+    message: "이 동네 사는 사람들 소득 수준이 어떻게 되나요?"
+  expect:
+    type: REFUSE
+    tools: []
+    # 근거: 소득·소비 추정 데이터가 없다. 민간 신용평가 데이터라 공개 범위 밖이다.
+
+- id: Q25
+  scenario: REFUSE
+  request:
+    userType: EXISTING
+    area: "50110660"
+    industry: FASTFOOD
+    myStore: null
+    message: "요즘 배달 비중이 홀보다 높나요?"
+  expect:
+    type: REFUSE
+    tools: []
+    # 근거: 배달과 홀을 가르는 구분이 없다. 카드 데이터에 채널 정보가 없다.
+
+# ── 되묻기 (Q26~Q30) ────────────────────────────────────────────
+# area·industry는 @NotBlank라 비울 수 없다. message가 막연하거나
+# 기존 사업자가 비교 대상 월매출을 내지 않은 경우로 만들었다.
+
+- id: Q26
+  scenario: ASK_BACK
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: KOREAN
+    myStore: null
+    message: "우리 가게가 동네 평균보다 잘하는 편인가요?"
+  expect:
+    type: ASK_BACK
+    tools: []
+    askFor: MY_STORE
+
+- id: Q27
+  scenario: ASK_BACK
+  request:
+    userType: EXISTING
+    area: "50110253"
+    industry: CAFE
+    myStore: null
+    message: "작년보다 우리 매출이 많이 떨어졌는데 왜 그럴까요?"
+  expect:
+    type: ASK_BACK
+    tools: []
+    askFor: MY_STORE
+
+- id: Q28
+  scenario: ASK_BACK
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    myStore: null
+    message: "분석해주세요"
+  expect:
+    type: ASK_BACK
+    tools: []
+    askFor: MESSAGE
+
+- id: Q29
+  scenario: ASK_BACK
+  request:
+    userType: STARTUP
+    area: "50130259"
+    industry: KOREAN
+    myStore: null
+    message: "어떻게 하면 좋을까요?"
+  expect:
+    type: ASK_BACK
+    tools: []
+    askFor: MESSAGE
+
+- id: Q30
+  scenario: ASK_BACK
+  request:
+    userType: EXISTING
+    area: "50110250"
+    industry: PUB
+    myStore: null
+    message: "비교 좀 해주세요"
+  expect:
+    type: ASK_BACK
+    tools: []
+    askFor: MESSAGE
