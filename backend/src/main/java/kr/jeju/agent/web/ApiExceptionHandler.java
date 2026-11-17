@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import kr.jeju.agent.agent.LlmUnavailableException;
 import kr.jeju.agent.web.dto.ApiErrorResponse;
 
 @RestControllerAdvice
@@ -31,6 +32,13 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleUnreadableBody(HttpMessageNotReadableException exception) {
         return ResponseEntity.badRequest()
                 .body(new ApiErrorResponse("INVALID_REQUEST", "요청 본문 형식이 올바르지 않습니다.", null));
+    }
+
+    @ExceptionHandler(LlmUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleLlmUnavailable(LlmUnavailableException exception) {
+        logger.warn("LLM 사용 불가: {}", exception.getMessage(), exception.getCause());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ApiErrorResponse("LLM_UNAVAILABLE", "잠시 후 다시 시도해 주세요.", null));
     }
 
     @ExceptionHandler(Exception.class)

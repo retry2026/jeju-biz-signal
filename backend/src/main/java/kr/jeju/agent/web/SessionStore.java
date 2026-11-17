@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ public class SessionStore {
     private final Duration timeToLive;
     private final Clock clock;
     private final ConcurrentMap<String, Instant> lastAccessedAt = new ConcurrentHashMap<>();
+    private volatile Consumer<String> onExpire = id -> { };
 
     @Autowired
     public SessionStore(@Value("${app.session.ttl-minutes:30}") long ttlMinutes) {
@@ -75,9 +77,14 @@ public class SessionStore {
         return Set.copyOf(expiredSessionIds);
     }
 
+    /** 만료된 세션 ID를 받을 곳. ChatController가 에이전트 대화 기억 삭제를 연결한다. */
+    public void onExpire(Consumer<String> listener) {
+        this.onExpire = listener;
+    }
+
     @Scheduled(fixedDelayString = "${app.session.cleanup-interval-ms:60000}")
     public void cleanupExpiredSessions() {
-        expireInactiveSessions();
+        expireInactiveSessions().forEach(onExpire);
     }
 
     private boolean isExpired(Instant lastAccess) {
