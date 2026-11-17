@@ -38,3 +38,74 @@ FROM read_csv(
         '위도': 'DOUBLE'
     }
 );
+
+-- S2 업종별 성별 카드 이용 정보 (제주데이터허브 1048, 제주빅데이터센터)
+-- 2018-01 ~ 2025-06 월별. 지역 구분이 없는 제주 전체 집계다.
+CREATE OR REPLACE TABLE raw_s2 AS
+SELECT CAST(base_year_month AS VARCHAR)  AS base_year_month,
+       trim(nfc_normalize(biz_nm))       AS biz_nm,
+       trim(nfc_normalize(user_type))    AS user_type,
+       trim(nfc_normalize(sex))          AS sex,
+       user_count,
+       use_count,
+       use_amount
+FROM read_csv(
+    '${DATA_DIR}/raw/s2_industry_card.csv',
+    header = true,
+    delim = ',',
+    quote = '"',
+    types = {
+        'base_year_month': 'VARCHAR',
+        'user_count': 'BIGINT',
+        'use_count': 'BIGINT',
+        'use_amount': 'BIGINT'
+    }
+);
+
+-- S3 제주 지역별 소비 (제주관광빅데이터플랫폼, 제주관광공사 / 공공누리 제1유형)
+-- 2020-01 ~ 2026-09 월별.
+-- 주의: 명세에는 "한 달 × 한 읍면동 × 한 관광객구분 × 한 업종"이 한 행이라고 돼 있으나,
+-- 실제로는 같은 조합에 행이 여럿이다(노형동 2026-09 내국인 음식점업 15행).
+-- 값이 모두 달라 중복이 아니라 CSV에 드러나지 않은 세부 분할로 보인다.
+-- 04_views.sql에서 계약 단위로 SUM해 합친다.
+CREATE OR REPLACE TABLE raw_s3 AS
+SELECT CAST(기준연월 AS VARCHAR)       AS 기준연월,
+       trim(nfc_normalize(관광객구분)) AS 관광객구분,
+       CAST(읍면동코드 AS VARCHAR)     AS 읍면동코드,
+       trim(nfc_normalize(읍면동명))   AS 읍면동명,
+       trim(nfc_normalize(지역명))     AS 지역명,
+       trim(nfc_normalize(업종명))     AS 업종명,
+       이용건수,
+       "소비금액(원)"                  AS 소비금액
+FROM read_csv(
+    '${DATA_DIR}/raw/s3_area_spend.csv',
+    header = true,
+    delim = ',',
+    quote = '"',
+    types = {
+        '기준연월': 'VARCHAR',
+        '읍면동코드': 'VARCHAR',
+        '이용건수': 'BIGINT',
+        '소비금액(원)': 'BIGINT'
+    }
+);
+
+-- S4 일별 입도 관광객 (제주관광빅데이터플랫폼, 제주관광협회 / 공공누리 제1유형)
+-- 2013-08-01 ~ 2026-11-16. 전체방문객수는 03_clean에서 다시 계산한다.
+CREATE OR REPLACE TABLE raw_s4 AS
+SELECT strptime("기준일자(YYYYMMDD)", '%Y%m%d')::DATE AS dt,
+       내국인방문객수 AS domestic_cnt,
+       외국인방문객수 AS foreign_cnt,
+       전체방문객수   AS total_cnt_원본
+FROM read_csv(
+    '${DATA_DIR}/raw/s4_arrivals.csv',
+    header = true,
+    delim = ',',
+    quote = '"',
+    types = {
+        '기준일자(YYYYMMDD)': 'VARCHAR',
+        '내국인방문객수': 'INTEGER',
+        '외국인방문객수': 'INTEGER',
+        '전체방문객수': 'INTEGER'
+    }
+);
