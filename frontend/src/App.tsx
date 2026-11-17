@@ -1,121 +1,208 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getMeta, sendChat, type ChatResponse, type MetaResponse, type UserType } from './api'
+import { ChatPage, type ChatTurn } from './components/ChatPage'
+import { ConditionPage } from './components/ConditionPage'
+import { StartPage } from './components/StartPage'
+import { useIdleReset } from './hooks/useIdleReset'
+import type { MonthlySale, MonthlySaleDraft } from './monthlySales.js'
 import './App.css'
 
+type Page = 'start' | 'conditions' | 'chat'
+
+function createSessionId() {
+  return crypto.randomUUID()
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [meta, setMeta] = useState<MetaResponse | null>(null)
+  const [metaError, setMetaError] = useState('')
+  const [page, setPage] = useState<Page>('start')
+  const [userType, setUserType] = useState<UserType | null>(null)
+  const [area, setArea] = useState('')
+  const [industry, setIndustry] = useState('')
+  const [monthlySalesDrafts, setMonthlySalesDrafts] = useState<MonthlySaleDraft[]>([])
+  const [sessionId, setSessionId] = useState(createSessionId)
+  const [turns, setTurns] = useState<ChatTurn[]>([])
+  const [pendingQuestion, setPendingQuestion] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [chatError, setChatError] = useState('')
+  const sendingRef = useRef(false)
+  const activeRequestRef = useRef<AbortController | null>(null)
+  const requestIdRef = useRef(0)
+
+  const loadMeta = useCallback(async () => {
+    try {
+      const response = await getMeta()
+      setMeta(response)
+      setMetaError('')
+    } catch (error) {
+      setMetaError(error instanceof Error ? error.message : '화면 정보를 불러오지 못했습니다.')
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getMeta()
+      .then((response) => {
+        if (active) {
+          setMeta(response)
+          setMetaError('')
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setMetaError(error instanceof Error ? error.message : '화면 정보를 불러오지 못했습니다.')
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    requestIdRef.current += 1
+    activeRequestRef.current?.abort()
+    activeRequestRef.current = null
+    setPage('start')
+    setUserType(null)
+    setArea('')
+    setIndustry('')
+    setMonthlySalesDrafts([])
+    setTurns([])
+    setPendingQuestion('')
+    setIsSending(false)
+    sendingRef.current = false
+    setChatError('')
+    setSessionId(createSessionId())
+  }, [])
+
+  useIdleReset(reset)
+
+  const startConversation = (selectedUserType: UserType) => {
+    setUserType(selectedUserType)
+    setPage('conditions')
+  }
+
+  const openChat = () => {
+    if (!userType || !area || !industry) return
+    setPage('chat')
+  }
+
+  const sendMessage = async (message: string, monthlySales: MonthlySale[]): Promise<boolean> => {
+    const trimmed = message.trim()
+    if (!trimmed || !userType || !area || !industry || sendingRef.current) return false
+
+    sendingRef.current = true
+    const requestId = ++requestIdRef.current
+    const controller = new AbortController()
+    activeRequestRef.current = controller
+    setIsSending(true)
+    setChatError('')
+    setPendingQuestion(trimmed)
+
+    try {
+      const response: ChatResponse = await sendChat({
+        sessionId,
+        userType,
+        area,
+        industry,
+        myStore: monthlySales.length > 0 ? { monthlySales } : null,
+        message: trimmed,
+      }, controller.signal)
+      if (requestId !== requestIdRef.current) return false
+      setTurns((current) => [...current, { question: trimmed, response }])
+      return true
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return false
+      setChatError(error instanceof Error ? error.message : '답변을 받지 못했습니다. 다시 시도해 주세요.')
+      return false
+    } finally {
+      if (requestId === requestIdRef.current) {
+        activeRequestRef.current = null
+        sendingRef.current = false
+        setIsSending(false)
+        setPendingQuestion('')
+      }
+    }
+  }
+
+  const returnToConditions = () => {
+    requestIdRef.current += 1
+    activeRequestRef.current?.abort()
+    activeRequestRef.current = null
+    sendingRef.current = false
+    setPage('conditions')
+    setSessionId(createSessionId())
+    setTurns([])
+    setIsSending(false)
+    setPendingQuestion('')
+    setChatError('')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <main className="app-shell">
+      <header className="app-header">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+          <p className="eyebrow">제주 상권 신호등</p>
+          <h1>도민일까, 관광객일까</h1>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+        {page !== 'start' && (
+          <button className="text-button" type="button" onClick={reset}>
+            처음으로
+          </button>
+        )}
+      </header>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {metaError && (
+        <div className="notice notice-error" role="alert">
+          <span>{metaError}</span>
+          <button className="text-button" type="button" onClick={() => void loadMeta()}>
+            다시 불러오기
+          </button>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {!meta && !metaError && <p className="loading-message" role="status">화면 정보를 불러오는 중입니다…</p>}
+
+      {meta && page === 'start' && (
+        <StartPage onSelect={startConversation} />
+      )}
+
+      {meta && page === 'conditions' && userType && (
+        <ConditionPage
+          areas={meta.areas}
+          industries={meta.industries}
+          selectedArea={area}
+          selectedIndustry={industry}
+          onAreaChange={setArea}
+          onIndustryChange={setIndustry}
+          onContinue={openChat}
+        />
+      )}
+
+      {meta && page === 'chat' && userType && (
+        <ChatPage
+          userType={userType}
+          area={meta.areas.find((item) => item.code === area)?.name ?? area}
+          industry={meta.industries.find((item) => item.code === industry)?.name ?? industry}
+          exampleQuestions={meta.exampleQuestions[userType]}
+          monthlySalesDrafts={monthlySalesDrafts}
+          onMonthlySalesDraftsChange={setMonthlySalesDrafts}
+          turns={turns}
+          pendingQuestion={pendingQuestion}
+          isSending={isSending}
+          error={chatError}
+          onSend={sendMessage}
+          onBack={returnToConditions}
+        />
+      )}
+
+      {meta && (
+        <footer className="app-footer">
+          데이터 기준일 · 점포 {meta.dataAsOf.store} · 동네 소비 {meta.dataAsOf.areaSpend} · 업종 카드 {meta.dataAsOf.industrySpend} · 입도객 {meta.dataAsOf.arrivals}
+        </footer>
+      )}
+    </main>
   )
 }
 

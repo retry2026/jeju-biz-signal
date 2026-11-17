@@ -5,6 +5,13 @@
 | 날짜 | 역할 | 도구 (모델) | 만든 것 |
 |---|---|---|---|
 | 2026-11-13 | ③ | Claude Code | 저장소 뼈대 (pom.xml, DataLoader, Vite 설정, 문서) |
+| 2026-11-16 | ④ | Copilot (VS Code) | 기존 사업자 월매출 입력 화면과 검증 테스트 |
+| 2026-11-16 | ④ | Copilot (VS Code) | 프론트엔드 API 응답 계약 검사와 오류 처리 테스트 |
+| 2026-11-16 | ④ | Copilot (VS Code) | 백엔드 API 검증·공통 오류 응답 처리와 테스트 |
+| 2026-11-16 | ④ | Copilot (VS Code) | 백엔드 API 오류 응답 테스트 보강 |
+| 2026-11-16 | ④ | Copilot (VS Code) | 백엔드 월매출 월 범위 검증을 프론트엔드와 일치 |
+| 2026-11-16 | ④ | Copilot (VS Code) | 세션 메타데이터 저장소와 TTL 테스트 |
+| 2026-11-16 | ④ | Copilot (VS Code) | Spring 예약 만료 작업 등록 및 실행 테스트 |
 | 2026-11-16 | ② | Copilot SDK | API 5장 지표 record, CompetitionMetric 스텁, DuckDB 테스트 작성 |
 | 2026-11-16 | ② | Copilot SDK | CompetitionMetric 집계·하버사인 반경 SQL 구현 및 밀집도 테스트 정밀도 조정 |
 | 2026-11-16 | ② | Copilot SDK | 지표 계산 명세, IndustryTourismMetric 손계산 테스트·구현, 반경 좌표 결측 처리 |
