@@ -45,6 +45,28 @@ class ChatRequestTest {
                         .isEqualTo("myStore.monthlySales"));
     }
 
+    @Test
+    void 월매출_월은_01부터_12까지만_허용한다() {
+        assertThat(validator.validate(requestWithMonth("2026-01"))).isEmpty();
+        assertThat(validator.validate(requestWithMonth("2026-12"))).isEmpty();
+
+        for (String month : List.of("2026-00", "2026-13", "2026-99")) {
+            assertThat(validator.validate(requestWithMonth(month)))
+                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
+                            .isEqualTo("myStore.monthlySales[0].month"));
+        }
+    }
+
+    private ChatRequest requestWithMonth(String month) {
+        return new ChatRequest(
+                "8f1c2a4e-1b7d-4c55-9a0e-2d3f4b5c6d7e",
+                "EXISTING",
+                "50110250",
+                "CAFE",
+                new MyStoreRequest(List.of(new MonthlySaleRequest(month, 100_000L))),
+                "매출이 줄었어요");
+    }
+
     private ChatRequest request(String message) {
         return new ChatRequest(
                 "8f1c2a4e-1b7d-4c55-9a0e-2d3f4b5c6d7e",
