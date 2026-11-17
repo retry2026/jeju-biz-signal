@@ -60,6 +60,16 @@ cd backend && java -jar target/jeju-agent.jar
 cd backend && ./mvnw test
 ```
 
+## 에이전트 평가
+
+평가 질문(`eval/questions.yaml`)을 모두 실행하고 결과를 `eval/results/`에 저장합니다. LLM 환경변수가 필요합니다.
+
+```bash
+cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=eval
+```
+
+질문 형식은 `eval/questions.example.yaml`을 참고합니다. 반복 횟수는 `--app.eval.repeat=1`처럼 바꿀 수 있습니다 (기본 3회).
+
 ## 기술 스택
 
 | 구분 | 사용 기술 |

@@ -1,0 +1,73 @@
+# 평가 질문 형식 예시 (API명세 7장). 실제 30개는 eval/questions.yaml에 쓴다.
+# area는 행정동 코드 8자리. 아래 코드는 예시이며 상가정보(S1) 파일로 확인해서 쓴다.
+# numbers의 gold는 eval/gold 아래 SQL 파일 이름(②가 작성). 첫 행 첫 열 숫자가 정답이다.
+
+- id: EX01
+  scenario: A
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    message: "노형동에 브런치 카페 차리려는데 괜찮을까요?"
+  expect:
+    type: ANSWER
+    tools: [competition, areaCustomers]
+    numbers:
+      - gold: A_competition_store_count.sql
+        tolerance: 0.5
+      - gold: A_resident_share.sql
+        tolerance: 0.5
+
+- id: EX02
+  scenario: B
+  request:
+    userType: EXISTING
+    area: "50110250"
+    industry: CAFE
+    message: "애월에서 카페 하는데 겨울만 되면 매출이 반토막 나요. 정상인가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers, industryTourism]
+    numbers:
+      - gold: B_tourist_share.sql
+        tolerance: 0.5
+      - gold: B_food_seasonal_range.sql
+        tolerance: 0.1
+
+- id: EX03
+  scenario: C
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: KOREAN
+    myStore:
+      monthlySales:
+        - { month: "2025-10", amount: 33000000 }
+        - { month: "2026-10", amount: 28000000 }
+    message: "연동 고깃집인데 작년보다 매출이 줄었어요. 우리 가게 문제인가요?"
+  expect:
+    type: ANSWER
+    tools: [areaCustomers]
+    numbers:
+      - gold: C_yeondong_food_yoy_change.sql
+        tolerance: 0.5
+
+- id: EX04
+  scenario: REFUSE
+  request:
+    userType: STARTUP
+    area: "50110660"
+    industry: CAFE
+    message: "저녁 장사는 어때요?"
+  expect:
+    type: REFUSE
+
+- id: EX05
+  scenario: ASK_BACK
+  request:
+    userType: EXISTING
+    area: "50110650"
+    industry: KOREAN
+    message: "작년보다 매출이 줄었는데 우리 가게 문제인가요?"
+  expect:
+    type: ASK_BACK

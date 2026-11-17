@@ -1,0 +1,4 @@
+# 평가 실행용 프로필. 웹 서버 없이 질문만 돌리고 종료한다.
+spring:
+  main:
+    web-application-type: none
