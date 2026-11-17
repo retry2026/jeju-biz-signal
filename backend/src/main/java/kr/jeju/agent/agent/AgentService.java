@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,8 @@ public class AgentService implements ChatAgent {
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
     private static final Set<String> TYPES = Set.of("ANSWER", "REFUSE", "ASK_BACK");
     private static final int MAX_CHARTS = 3;
+    private static final long RETRY_DEADLINE_MS = 25_000;
+    private static final Set<String> ASK_FOR = Set.of("AREA", "INDUSTRY", "MESSAGE", "MY_STORE");
 
     private final LlmGateway llm;
     private final CompetitionMetric competitionMetric;
@@ -36,9 +39,20 @@ public class AgentService implements ChatAgent {
     private final InputGuard inputGuard = new InputGuard();
     private final LimitBuilder limitBuilder = new LimitBuilder();
 
+    /** 행정동 코드 → 화면 이름 (예: 50110660 → 노형동). 모르는 코드면 null. */
+    private final Function<String, String> areaNames;
+
     public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
             int maxToolCalls) {
+        this(llm, competitionMetric, areaCustomerMetric, industryTourismMetric, chartAssembler, systemPrompt,
+                maxToolCalls, code -> null);
+    }
+
+    public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
+            IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
+            int maxToolCalls, Function<String, String> areaNames) {
+        this.areaNames = areaNames;
         this.llm = llm;
         this.competitionMetric = competitionMetric;
         this.areaCustomerMetric = areaCustomerMetric;
@@ -63,21 +77,26 @@ public class AgentService implements ChatAgent {
         long start = System.currentTimeMillis();
         EvidenceCollector collector;
         AgentReply reply;
-        int attempt = 1;
+        int attempt = 0;
         while (true) {
             // 재시도마다 도구와 수집기를 새로 만들어 근거가 두 번 쌓이지 않게 한다.
             collector = new EvidenceCollector();
             AgentTools tools = new AgentTools(competitionMetric, areaCustomerMetric, industryTourismMetric,
                     collector, maxToolCalls);
             try {
-                reply = llm.ask(request.sessionId(), systemPrompt, userMessage(request), tools);
+                reply = llm.ask(request.sessionId(), systemPrompt, userMessage(request), tools, attempt);
                 break;
             } catch (LlmUnavailableException e) {
-                // Gemini가 가끔 503(과부하)을 준다. 시간 초과는 이미 오래 기다렸으니 다시 부르지 않는다.
-                if (attempt++ >= 2 || e.getCause() instanceof java.util.concurrent.TimeoutException) {
+                // 할당량 초과(429)나 과부하(503)는 다음 시도에서 예비 모델로 넘어간다.
+                // 시간 초과는 이미 오래 기다렸으니 다시 부르지 않는다.
+                // 화면은 60초를 기다린다. 이미 오래 걸렸으면 다시 불러도 그 안에 끝나지 않는다.
+                boolean late = System.currentTimeMillis() - start > RETRY_DEADLINE_MS;
+                if (++attempt >= llm.maxAttempts() || late
+                        || e.getCause() instanceof java.util.concurrent.TimeoutException) {
                     throw e;
                 }
-                log.warn("LLM 실패, 한 번 다시 시도: {}", e.getCause() == null ? e.getMessage() : e.getCause().toString());
+                log.warn("LLM 실패, 다시 시도 ({}/{}): {}", attempt + 1, llm.maxAttempts(),
+                        e.getCause() == null ? e.getMessage() : e.getCause().toString());
             }
         }
         AgentAnswer response = assemble(reply, collector, myStore(request));
@@ -102,7 +121,7 @@ public class AgentService implements ChatAgent {
 
         if (!"ANSWER".equals(type)) {
             return new AgentAnswer(type, reply.summary(), "ASK_BACK".equals(type) ? List.of() : sections,
-                    List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? reply.askFor() : null);
+                    List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? askFor(reply.askFor()) : null);
         }
 
         List<String> chartIds = orEmpty(reply.chartIds()).stream().distinct().limit(MAX_CHARTS).toList();
@@ -120,11 +139,16 @@ public class AgentService implements ChatAgent {
         return sales.isEmpty() ? null : new MyStoreInput(sales);
     }
 
-    private static String userMessage(AgentRequest request) {
+    String userMessage(AgentRequest request) {
         StringBuilder sb = new StringBuilder();
         sb.append("[조건]\n");
         sb.append("- 사용자 유형: ").append("EXISTING".equals(request.userType()) ? "기존 사업자" : "예비 창업자").append('\n');
-        sb.append("- 지역(행정동 코드): ").append(request.area()).append('\n');
+        String areaName = areaNames.apply(request.area());
+        if (areaName != null) {
+            sb.append("- 지역: ").append(areaName).append(" (도구에 넘길 행정동 코드: ").append(request.area()).append(")\n");
+        } else {
+            sb.append("- 지역(행정동 코드): ").append(request.area()).append('\n');
+        }
         sb.append("- 업종 코드: ").append(request.industry()).append('\n');
         if (!request.monthlySales().isEmpty()) {
             sb.append("- 사용자가 입력한 월매출(원): ");
@@ -135,8 +159,14 @@ public class AgentService implements ChatAgent {
         // 작은 모델은 JSON 형식 지시를 보고 도구 없이 바로 답하는 경향이 있어 순서를 마지막에 다시 못박는다.
         sb.append("\n\n[순서]\n1. 데이터로 답할 수 있는 질문이면 JSON을 쓰기 전에 필요한 도구를 먼저 호출한다.")
                 .append("\n2. 도구 결과를 받은 뒤에만 숫자를 쓴다. 도구를 부르지 않았으면 숫자를 하나도 쓰지 않는다.")
+                .append(" 숫자끼리 더하거나 빼서 새 숫자를 만들지 않는다 (관광객 합계는 touristShare를 그대로 쓴다).")
                 .append("\n3. 데이터에 없는 질문이면 도구 없이 REFUSE로 답한다.");
         return sb.toString();
+    }
+
+    /** 화면은 정해진 네 값만 받는다. LLM이 다른 값을 쓰면 질문을 다시 써 달라는 MESSAGE로 본다. */
+    static String askFor(String value) {
+        return value != null && ASK_FOR.contains(value) ? value : "MESSAGE";
     }
 
     private static <T> List<T> orEmpty(List<T> list) {

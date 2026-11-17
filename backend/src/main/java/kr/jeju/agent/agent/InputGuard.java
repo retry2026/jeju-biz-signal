@@ -7,8 +7,12 @@ import java.util.Optional;
 /** LLM을 부르기 전에 코드로 되묻기를 결정한다. 기본값을 넣지 않는다 (FR-10, FR-17). */
 public class InputGuard {
 
+    /**
+     * 내 가게 매출을 동네와 비교해 달라는 표현. "작년보다", "매출이 줄" 같은 말은 관광객 추이나
+     * 계절 질문에도 쓰여서 넣지 않는다 (예: "겨울만 되면 매출이 줄어요"는 월매출 없이 답할 수 있다).
+     */
     private static final List<String> MY_STORE_KEYWORDS =
-            List.of("우리 가게", "내 가게", "작년보다", "전년보다", "매출이 줄", "매출이 떨어", "매출 하락", "가게 문제");
+            List.of("우리 가게", "내 가게", "우리 매출", "내 매출", "가게 문제", "우리 집 매출");
 
     public Optional<AgentAnswer> check(AgentRequest request) {
         if (isBlank(request.area())) {

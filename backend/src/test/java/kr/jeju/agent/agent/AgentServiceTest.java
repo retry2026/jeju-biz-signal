@@ -167,6 +167,77 @@ class AgentServiceTest {
     }
 
     @Test
+    void LLM이_계속_실패하면_예비_모델_순서대로_시도하고_마지막에_예외를_던진다() {
+        List<Integer> attempts = new java.util.ArrayList<>();
+        LlmGateway allDown = new LlmGateway() {
+            @Override
+            public AgentReply ask(String s, String sys, String u, Object t) {
+                throw new AssertionError("시도 번호가 있는 메서드를 불러야 한다");
+            }
+
+            @Override
+            public AgentReply ask(String s, String sys, String u, Object t, int attempt) {
+                attempts.add(attempt);
+                throw new LlmUnavailableException("429", new RuntimeException("quota"));
+            }
+
+            @Override
+            public int maxAttempts() {
+                return 3;
+            }
+        };
+
+        assertThatThrownBy(() -> service(allDown).answer(request("STARTUP", "괜찮을까요?", null)))
+                .isInstanceOf(LlmUnavailableException.class);
+        assertThat(attempts).containsExactly(0, 1, 2);
+    }
+
+    @Test
+    void 지역_이름을_알면_LLM에_이름과_코드를_함께_넘긴다() {
+        AgentService named = new AgentService(new NoLlmGateway(), db.competition, db.areaCustomers, db.industryTourism,
+                new ChartAssembler(), "system", 6, code -> AEWOL.equals(code) ? "한림읍" : null);
+
+        assertThat(named.userMessage(request("STARTUP", "괜찮을까요?", null)))
+                .contains("지역: 한림읍 (도구에 넘길 행정동 코드: " + AEWOL + ")");
+        assertThat(service(new NoLlmGateway()).userMessage(request("STARTUP", "괜찮을까요?", null)))
+                .contains("지역(행정동 코드): " + AEWOL);
+    }
+
+    @Test
+    void 되묻기의_askFor가_정해진_값이_아니면_MESSAGE로_바꾼다() {
+        LlmGateway vague = (s, sys, u, t) -> new AgentReply("ASK_BACK", "무엇이 궁금하신가요?", null, null,
+                List.of("손님 구성을 볼까요?"), "QUESTION");
+        AgentAnswer r = service(vague).answer(request("STARTUP", "분석해주세요", null));
+
+        assertThat(r.type()).isEqualTo("ASK_BACK");
+        assertThat(r.askFor()).isEqualTo("MESSAGE");
+        assertThat(AgentService.askFor("MY_STORE")).isEqualTo("MY_STORE");
+    }
+
+    @Test
+    void 내_가게를_가리키지_않는_전년_비교_질문은_월매출_없이_답한다() {
+        AtomicInteger calls = new AtomicInteger();
+        for (String q : List.of("요즘 제주 오는 관광객이 작년보다 줄었나요?", "겨울만 되면 매출이 줄어요. 정상인가요?",
+                "동네 소비가 작년보다 줄었나요?")) {
+            assertThat(service(scenarioB(calls)).answer(request("EXISTING", q, null)).type()).as(q).isEqualTo("ANSWER");
+        }
+        assertThat(calls.get()).isEqualTo(3);
+    }
+
+    @Test
+    void 시간_초과는_다시_시도하지_않는다() {
+        AtomicInteger calls = new AtomicInteger();
+        LlmGateway slow = (s, sys, u, t) -> {
+            calls.incrementAndGet();
+            throw new LlmUnavailableException("시간 초과", new java.util.concurrent.TimeoutException());
+        };
+
+        assertThatThrownBy(() -> service(slow).answer(request("STARTUP", "괜찮을까요?", null)))
+                .isInstanceOf(LlmUnavailableException.class);
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
     void 이상한_type은_ANSWER로_바꾼다() {
         LlmGateway llm = (s, sys, u, t) -> new AgentReply("WHATEVER", "요약", null, null, null, null);
         AgentAnswer r = service(llm).answer(request("STARTUP", "괜찮을까요?", null));

@@ -17,7 +17,8 @@ Maven은 따로 설치하지 않아도 됩니다. `backend/mvnw`가 필요한 �
 |---|---|---|
 | `LLM_PROVIDER` | 예 | `google-genai`로 설정하면 Gemini를 사용합니다. 설정하지 않으면 LLM 없이 실행되고 질문에는 답하지 않습니다 |
 | `LLM_API_KEY` | 예 | Gemini API 키 |
-| `LLM_MODEL` | 아니오 | 사용할 모델. 기본값 `gemini-3.8-flash` |
+| `LLM_MODEL` | 아니오 | 사용할 모델. 기본값 `gemini-3.5-flash-lite` |
+| `LLM_FALLBACK_MODELS` | 아니오 | 기본 모델이 할당량 초과나 과부하로 실패하면 순서대로 시도할 모델 (쉼표 구분). 기본값 `gemini-3-flash-preview,gemini-3.8-flash` |
 | `DATA_DIR` | 아니오 | 데이터 폴더 경로. 기본값 `../data` (`backend` 폴더 기준) |
 
 `.env.example`에 이름 목록이 있습니다.
