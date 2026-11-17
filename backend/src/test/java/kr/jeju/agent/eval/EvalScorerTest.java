@@ -82,6 +82,16 @@ class EvalScorerTest {
     }
 
     @Test
+    void 기간_표기와_계절_지수_기준값은_근거_없는_숫자로_세지_않는다() {
+        QuestionScore s = scorer.score(question("ANSWER", List.of(), List.of()),
+                answer("ANSWER", "2025-09 ~ 2026-09 기준, 2026-10-16부터 4주. 연평균 100 기준 8월 지수는 107.7입니다.",
+                        List.of(), List.of(107.7)), Map.of());
+
+        assertThat(s.unsupported()).isEmpty();
+        assertThat(EvalScorer.numbers("2025-09 ~ 2026-09")).isEmpty();
+    }
+
+    @Test
     void 쉼표가_있는_금액도_숫자로_읽는다() {
         assertThat(EvalScorer.numbers("건당 14,200원, -6.3%")).containsExactly(14200.0, -6.3);
     }
