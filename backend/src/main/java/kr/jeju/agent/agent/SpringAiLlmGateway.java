@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -55,6 +56,8 @@ public class SpringAiLlmGateway implements LlmGateway {
                 .tools(tools)
                 .advisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+                // 답변 JSON을 프롬프트 지시가 아니라 Gemini의 JSON 스키마 모드로 받는다. 문장 지시만으로는 JSON이 가끔 중간에 끊겼다.
+                .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
                 .call()
                 .entity(AgentReply.class), executor);
         try {
