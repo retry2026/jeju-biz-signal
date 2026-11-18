@@ -45,8 +45,20 @@ const pickers = {
 }
 
 /** 차트 목록에서 숫자 타일을 최대 3개 고른다. 고를 수 있는 차트가 없으면 빈 목록. */
+/**
+ * 동네 결제 합계나 월매출처럼 큰 금액은 원 단위로 그리면 축 숫자가 너무 길어, 100만 원이 넘으면 만원 단위로 보여 준다.
+ * 건당 결제액처럼 몇만 원대 금액은 원 단위 그대로 둔다.
+ */
+export function chartUnit(chart) {
+  const values = chart.datasets.flatMap((dataset) => dataset.data).filter(isNumber)
+  const large = chart.unit === '원' && values.some((value) => Math.abs(value) >= 1_000_000)
+  return large ? { unit: '만원', scale: (value) => (value === null ? null : Math.round(value / 10_000)) } : { unit: chart.unit, scale: (value) => value }
+}
+
 export function keyMetrics(charts) {
   return charts
+    // 동네 비교 차트는 묶음이 여러 개라 숫자 하나만 크게 띄우면 어느 동네 값인지 알 수 없어 타일을 만들지 않는다.
+    .filter((chart) => chart.datasets.length === 1)
     .map((chart) => pickers[chart.id]?.(chart))
     .filter(Boolean)
     .slice(0, 3)

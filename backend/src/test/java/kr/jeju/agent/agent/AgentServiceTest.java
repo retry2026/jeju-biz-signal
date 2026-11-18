@@ -92,12 +92,14 @@ class AgentServiceTest {
     }
 
     @Test
-    void 거절이면_차트와_근거와_한계를_비운다() {
-        LlmGateway refuse = (s, sys, u, t) -> new AgentReply("REFUSE", "시간대 데이터는 없습니다.", List.of(),
+    void 거절이면_본문과_차트와_근거와_한계를_비운다() {
+        LlmGateway refuse = (s, sys, u, t) -> new AgentReply("REFUSE", "시간대 데이터는 없습니다.",
+                List.of(new AgentReply.SectionText("customers", "동네 손님", "관광객 비중은 69.6%입니다.")),
                 List.of("customerMix"), List.of("손님 구성을 볼까요?"), null);
         AgentAnswer r = service(refuse).answer(request("STARTUP", "저녁 장사 어때요?", null));
 
         assertThat(r.type()).isEqualTo("REFUSE");
+        assertThat(r.sections()).isEmpty();
         assertThat(r.charts()).isEmpty();
         assertThat(r.evidence()).isEmpty();
         assertThat(r.limits()).isEmpty();
@@ -134,6 +136,56 @@ class AgentServiceTest {
 
         assertThat(r.charts()).extracting(c -> c.id()).containsExactly("myStoreVsArea", "customerMix", "areaMonthly");
         assertThat(r.charts().get(0).labels()).containsExactly("2025-03", "2026-05");
+    }
+
+    @Test
+    void 답변_문장에_섞인_차트_id와_업종_코드를_우리말로_바꾼다() {
+        assertThat(AgentService.readable("`myStoreVsArea` 차트를 보면 PUB 업종은 touristShare가 낮습니다."))
+                .isEqualTo("내 가게 비교 차트를 보면 주점 업종은 관광객 비중이 낮습니다.");
+        assertThat(AgentService.readable("PUBLIC 데이터")).isEqualTo("PUBLIC 데이터");
+        assertThat(AgentService.readable("yoyChange는 -3%, CAFE와 KOREAN을 비교")).isEqualTo("전년 대비 변화는 -3%, 카페와 한식을 비교");
+
+        LlmGateway llm = (s, sys, u, t) -> new AgentReply("REFUSE", "areaMonthly는 없습니다.", List.of(),
+                List.of(), List.of("CAFE 손님 구성은?"), null);
+        AgentAnswer r = service(llm).answer(request("STARTUP", "메뉴 가격 알려줘", null));
+        assertThat(r.summary()).isEqualTo("동네 월별 결제 차트는 없습니다.");
+        assertThat(r.suggestions()).containsExactly("카페 손님 구성은?");
+    }
+
+    @Test
+    void 직전_답변이_거절이면_다음_질문에_그_사실을_알려_준다() {
+        List<String> prompts = new java.util.ArrayList<>();
+        LlmGateway llm = (s, sys, user, t) -> {
+            prompts.add(user);
+            return new AgentReply("REFUSE", "메뉴 가격은 알 수 없어요.", List.of(), List.of(), List.of(), null);
+        };
+        AgentService service = service(llm);
+        service.answer(request("STARTUP", "메뉴 가격 얼마로 해요?", null));
+        service.answer(request("STARTUP", "구체적으로요?", null));
+        service.endSession("s1");
+        service.answer(request("STARTUP", "구체적으로요?", null));
+
+        assertThat(prompts.get(0)).doesNotContain("[직전 답변]");
+        assertThat(prompts.get(1)).contains("[직전 답변]", "REFUSE");
+        assertThat(prompts.get(2)).doesNotContain("[직전 답변]");
+    }
+
+    @Test
+    void 질문에_나온_다른_동네의_코드를_LLM에_알려_준다() {
+        List<String> prompts = new java.util.ArrayList<>();
+        LlmGateway llm = (s, sys, user, t) -> {
+            prompts.add(user);
+            return new AgentReply("ANSWER", "요약", List.of(), List.of(), List.of(), null);
+        };
+        AgentService service = new AgentService(llm, db.competition, db.areaCustomers, db.industryTourism,
+                new ChartAssembler(), "system", 6, code -> null,
+                () -> java.util.Map.of("한림읍", "50119999", "애월읍", AEWOL, "이도1동", "50110580"));
+
+        service.answer(request("STARTUP", "이 동네랑 한림 손님 구성 비교해줘", null));
+
+        assertThat(prompts.get(0)).contains("질문에 나온 다른 지역: 한림읍 (도구에 넘길 행정동 코드: 50119999")
+                .doesNotContain("이도1동");
+        assertThat(service.mentionedAreas("애월읍과 한림읍 비교", AEWOL)).containsOnlyKeys("한림읍");
     }
 
     @Test

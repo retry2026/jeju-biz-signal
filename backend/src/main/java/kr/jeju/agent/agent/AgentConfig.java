@@ -5,7 +5,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -63,7 +65,20 @@ public class AgentConfig {
             IndustryTourismMetric industryTourism, ChartAssembler chartAssembler,
             @Value("${app.llm.max-tool-calls:6}") int maxToolCalls, JdbcClient jdbc) {
         return new AgentService(llmGateway, competition, areaCustomers, industryTourism, chartAssembler,
-                prompt("system.md") + "\n\n" + prompt("refusal.md"), maxToolCalls, code -> areaName(jdbc, code));
+                prompt("system.md") + "\n\n" + prompt("refusal.md"), maxToolCalls, code -> areaName(jdbc, code),
+                () -> areaCodesByName(jdbc));
+    }
+
+    /** 전체 동네의 이름 → 코드. 데이터 적재가 앱 시작 뒤에 끝나므로 요청 때마다 읽는다 (43행). */
+    static Map<String, String> areaCodesByName(JdbcClient jdbc) {
+        try {
+            Map<String, String> codes = new HashMap<>();
+            jdbc.sql("SELECT DISTINCT emd_name, emd_code FROM ref_area")
+                    .query((rs, i) -> codes.put(rs.getString(1), rs.getString(2))).list();
+            return codes;
+        } catch (DataAccessException e) {
+            return Map.of();
+        }
     }
 
     /** 답변에 "해당 동네" 대신 지역 이름을 쓰도록 코드를 이름으로 바꾼다. 데이터가 없으면 null. */

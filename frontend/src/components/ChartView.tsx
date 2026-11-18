@@ -12,7 +12,7 @@ import {
 } from 'chart.js'
 import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import type { ChatChart } from '../api'
-import { scopeLabel } from '../resultMetrics.js'
+import { chartUnit, scopeLabel } from '../resultMetrics.js'
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Legend)
 
@@ -37,17 +37,19 @@ const grid = {
 
 export function ChartView({ chart }: ChartViewProps) {
   const lineColors = [SEA, TANGERINE, GRAY]
+  const { unit, scale } = chartUnit(chart)
   const data = {
     labels: chart.labels,
     datasets: chart.datasets.map((dataset, index) => {
       const color = dataset.dashed ? GRAY : lineColors[index % lineColors.length]
       return {
         label: dataset.label,
-        data: dataset.data,
+        data: dataset.data.map(scale),
         borderColor: chart.type === 'doughnut' ? '#ffffff' : color,
         backgroundColor: chart.type === 'doughnut'
           ? [SEA, TANGERINE, GRAY]
-          : chart.type === 'bar' ? [SEA, GRAY, TANGERINE] : color,
+          // 막대가 한 묶음이면 막대마다 색을 다르게, 동네 비교처럼 여러 묶음이면 묶음(동네)마다 한 색으로 칠한다.
+          : chart.type === 'bar' && chart.datasets.length === 1 ? [SEA, GRAY, TANGERINE] : color,
         borderDash: dataset.dashed ? [6, 4] : undefined,
         borderWidth: chart.type === 'line' ? 2.5 : chart.type === 'doughnut' ? 2 : 0,
         borderRadius: chart.type === 'bar' ? 3 : 0,
@@ -66,7 +68,7 @@ export function ChartView({ chart }: ChartViewProps) {
         {chart.type === 'bar' && <Bar data={data as ChartData<'bar', (number | null)[], string>} options={{ ...common, scales: grid, plugins: { legend: { display: chart.datasets.length > 1 } } }} />}
         {chart.type === 'doughnut' && <Doughnut data={data as ChartData<'doughnut', (number | null)[], string>} options={{ ...common, cutout: '62%', plugins: { legend: { position: 'right' } } }} />}
       </div>
-      <p className="chart-source">단위 {chart.unit} · {chart.source} · {scopeLabel(chart.scope)}</p>
+      <p className="chart-source">단위 {unit} · {chart.source} · {scopeLabel(chart.scope)}</p>
     </figure>
   )
 }

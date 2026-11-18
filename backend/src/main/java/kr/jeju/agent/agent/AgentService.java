@@ -2,12 +2,17 @@ package kr.jeju.agent.agent;
 
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +46,19 @@ public class AgentService implements ChatAgent {
     private final int maxToolCalls;
     private final InputGuard inputGuard = new InputGuard();
     private final LimitBuilder limitBuilder = new LimitBuilder();
+    /**
+     * 세션별 직전 답변 유형. "구체적으로요?" 같은 이어 묻는 질문은 직전 답이 거절이면 이어받을 내용이 없는데,
+     * LLM은 대화 기억만 보고 거절된 주제를 억지로 이어 답하는 경우가 있어 코드가 직전 유형을 짚어 준다.
+     */
+    private final Map<String, String> lastTypes = new ConcurrentHashMap<>();
 
     /** 행정동 코드 → 화면 이름 (예: 50110660 → 노형동). 모르는 코드면 null. */
     private final Function<String, String> areaNames;
+    /**
+     * 화면 이름 → 행정동 코드 (전체 동네). 질문에 다른 동네 이름이 나오면 코드를 알려 주어,
+     * LLM이 비교할 동네의 코드를 짐작해 넣지 않게 한다.
+     */
+    private final Supplier<Map<String, String>> areaCodesByName;
 
     public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
@@ -55,7 +70,15 @@ public class AgentService implements ChatAgent {
     public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
             int maxToolCalls, Function<String, String> areaNames) {
+        this(llm, competitionMetric, areaCustomerMetric, industryTourismMetric, chartAssembler, systemPrompt,
+                maxToolCalls, areaNames, Map::of);
+    }
+
+    public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
+            IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
+            int maxToolCalls, Function<String, String> areaNames, Supplier<Map<String, String>> areaCodesByName) {
         this.areaNames = areaNames;
+        this.areaCodesByName = areaCodesByName;
         this.llm = llm;
         this.competitionMetric = competitionMetric;
         this.areaCustomerMetric = areaCustomerMetric;
@@ -103,7 +126,8 @@ public class AgentService implements ChatAgent {
             }
         }
         AgentAnswer response = assemble(reply, collector, myStore(request), request.message().contains("매출"));
-        onEvidence.accept(collector.snapshot(myStore(request)));
+        onEvidence.accept(collector.snapshot(myStore(request), areaNames));
+        lastTypes.put(request.sessionId(), response.type());
 
         log.info("chat session={} type={} tools={} ms={}", request.sessionId(), response.type(),
                 collector.evidence().stream().map(e -> e.tool()).toList(), System.currentTimeMillis() - start);
@@ -113,17 +137,21 @@ public class AgentService implements ChatAgent {
     @Override
     public void endSession(String sessionId) {
         llm.clear(sessionId);
+        lastTypes.remove(sessionId);
     }
 
     AgentAnswer assemble(AgentReply reply, EvidenceCollector collector, MyStoreInput myStore, boolean salesQuestion) {
         String type = reply.type() != null && TYPES.contains(reply.type()) ? reply.type() : "ANSWER";
+        String summary = readable(reply.summary());
         List<AgentAnswer.Section> sections = orEmpty(reply.sections()).stream()
-                .map(s -> new AgentAnswer.Section(s.id(), s.title(), s.text()))
+                .map(s -> new AgentAnswer.Section(s.id(), s.title(), readable(s.text())))
                 .toList();
-        List<String> suggestions = orEmpty(reply.suggestions()).stream().limit(3).toList();
+        List<String> suggestions = orEmpty(reply.suggestions()).stream().limit(3).map(AgentService::readable).toList();
 
         if (!"ANSWER".equals(type)) {
-            return new AgentAnswer(type, reply.summary(), "ASK_BACK".equals(type) ? List.of() : sections,
+            // 거절과 되묻기는 요약과 대안 질문만 보낸다. 본문을 남기면 "답할 수 없다"면서 대안 질문의 답을 먼저 늘어놓거나,
+            // 도구 없이 앞 대화의 숫자를 옮겨 쓰는 경우가 있다.
+            return new AgentAnswer(type, summary, List.of(),
                     List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? askFor(reply.askFor()) : null);
         }
 
@@ -134,8 +162,8 @@ public class AgentService implements ChatAgent {
             chartIds = Stream.concat(Stream.of("myStoreVsArea"), chartIds.stream()).toList();
         }
         chartIds = chartIds.stream().limit(MAX_CHARTS).toList();
-        return new AgentAnswer(type, reply.summary(), sections,
-                chartAssembler.build(chartIds, collector.snapshot(myStore)),
+        return new AgentAnswer(type, summary, sections,
+                chartAssembler.build(chartIds, collector.snapshot(myStore, areaNames)),
                 collector.evidence(), limitBuilder.build(collector.metas()), suggestions, null);
     }
 
@@ -158,6 +186,9 @@ public class AgentService implements ChatAgent {
         } else {
             sb.append("- 지역(행정동 코드): ").append(request.area()).append('\n');
         }
+        mentionedAreas(request.message(), request.area()).forEach((name, code) ->
+                sb.append("- 질문에 나온 다른 지역: ").append(name).append(" (도구에 넘길 행정동 코드: ").append(code)
+                        .append(". 비교를 물으면 이 코드로 같은 도구를 한 번 더 부른다)\n"));
         String industryName = InputGuard.INDUSTRY_NAMES.get(request.industry());
         if (industryName != null) {
             sb.append("- 업종: ").append(industryName).append(" (도구에 넘길 업종 코드: ").append(request.industry())
@@ -175,6 +206,13 @@ public class AgentService implements ChatAgent {
                         .append(" 매출이 오르내린 달을 동네 흐름과 말로만 견준다. 전년 대비를 보려면 작년 같은 달 매출도 넣어 달라고 advice에 한 줄 쓴다)\n");
             }
         }
+        String lastType = lastTypes.get(request.sessionId());
+        if ("REFUSE".equals(lastType)) {
+            sb.append("\n[직전 답변]\n직전 질문은 데이터로 답할 수 없어 거절(REFUSE)했다. 이번 질문이 그 내용을 이어 묻는 것이면(\"구체적으로요?\", \"더 자세히\")")
+                    .append(" 거절한 주제를 지어내 답하지 말고 다시 REFUSE로 답한다. 새로운 질문이면 평소대로 답한다.\n");
+        } else if ("ASK_BACK".equals(lastType)) {
+            sb.append("\n[직전 답변]\n직전에는 질문이 막연해 되물었다(ASK_BACK). 이번 질문이 여전히 무엇을 알고 싶은지 드러나지 않으면 다시 ASK_BACK으로 답한다.\n");
+        }
         sb.append("\n[질문]\n").append(request.message());
         // 작은 모델은 JSON 형식 지시를 보고 도구 없이 바로 답하는 경향이 있어 순서를 마지막에 다시 못박는다.
         sb.append("\n\n[순서]\n1. 데이터로 답할 수 있는 질문이면 JSON을 쓰기 전에 필요한 도구를 먼저 호출한다.")
@@ -182,6 +220,71 @@ public class AgentService implements ChatAgent {
                 .append(" 숫자끼리 더하거나 빼서 새 숫자를 만들지 않는다 (관광객 합계는 touristShare를 그대로 쓴다).")
                 .append("\n3. 데이터에 없는 질문이면 도구 없이 REFUSE로 답한다.");
         return sb.toString();
+    }
+
+    /** 프롬프트와 도구 결과에 쓰는 영어 이름. LLM이 답변 문장에 그대로 옮겨 쓰면 화면에 보이므로 우리말로 바꾼다. */
+    private static final Map<String, String> READABLE_NAMES = Map.ofEntries(
+            Map.entry("myStoreVsArea", "내 가게 비교 차트"),
+            Map.entry("areaMonthly", "동네 월별 결제 차트"),
+            Map.entry("customerMix", "손님 구성 차트"),
+            Map.entry("ticketSize", "건당 결제액 차트"),
+            Map.entry("touristFlow", "입도객 흐름 차트"),
+            Map.entry("industrySeason", "업종 계절 차트"),
+            Map.entry("areaCustomers", "동네 손님 데이터"),
+            Map.entry("industryTourism", "업종 데이터"),
+            Map.entry("touristShare", "관광객 비중"),
+            Map.entry("residentShare", "도민 비중"),
+            Map.entry("domesticShare", "내국인 관광객 비중"),
+            Map.entry("foreignShare", "외국인 관광객 비중"),
+            Map.entry("yoyChange", "전년 대비 변화"),
+            Map.entry("ticketYoy", "건당 결제액 전년 대비"));
+    private static final Pattern ENGLISH_NAME = Pattern.compile(
+            "(?<![A-Za-z])`?(" + String.join("|", READABLE_NAMES.keySet()) + "|" + String.join("|", InputGuard.INDUSTRY_NAMES.keySet())
+                    + ")`?(\\s*차트)?(?![A-Za-z])([이가은는을를과와](?![가-힣]))?");
+
+    static String readable(String text) {
+        if (text == null) {
+            return null;
+        }
+        Matcher m = ENGLISH_NAME.matcher(text);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String name = READABLE_NAMES.getOrDefault(m.group(1), InputGuard.INDUSTRY_NAMES.get(m.group(1)));
+            // "PUB 차트"처럼 업종 뒤에 붙은 "차트"는 지우지 않는다.
+            String word = name + (m.group(2) != null && !name.endsWith("차트") ? m.group(2) : "");
+            String particle = m.group(3) == null ? "" : particle(word, m.group(3));
+            m.appendReplacement(sb, Matcher.quoteReplacement(word + particle));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** 바꾼 말의 받침에 맞춰 조사를 고른다 (비중이, 차트가, 주점은, 카페는). */
+    private static String particle(String word, String original) {
+        char last = word.charAt(word.length() - 1);
+        boolean batchim = last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0;
+        return switch (original) {
+            case "이", "가" -> batchim ? "이" : "가";
+            case "은", "는" -> batchim ? "은" : "는";
+            case "을", "를" -> batchim ? "을" : "를";
+            default -> batchim ? "과" : "와";
+        };
+    }
+
+    /**
+     * 질문에 나온 다른 동네 이름과 코드. "한림읍"처럼 전체 이름이나 "한림"처럼 읍·면·동을 뗀 이름(두 글자 이상)을 찾는다.
+     * 화면에서 고른 동네는 이미 [조건]에 있으므로 뺀다.
+     */
+    Map<String, String> mentionedAreas(String message, String selectedArea) {
+        Map<String, String> found = new java.util.TreeMap<>();
+        areaCodesByName.get().forEach((name, code) -> {
+            String shortName = name.replaceAll("[읍면동]$", "");
+            boolean mentioned = message.contains(name) || (shortName.length() >= 2 && message.contains(shortName));
+            if (mentioned && !code.equals(selectedArea)) {
+                found.put(name, code);
+            }
+        });
+        return found;
     }
 
     /** 같은 달의 작년 매출이 함께 있어야 차트가 내 가게 전년 대비를 계산한다. */

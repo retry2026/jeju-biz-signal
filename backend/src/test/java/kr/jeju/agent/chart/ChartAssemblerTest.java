@@ -151,6 +151,28 @@ class ChartAssemblerTest {
     }
 
     @Test
+    void 두_동네를_조회하면_손님_구성과_결제_차트를_동네_이름별로_나란히_그린다() {
+        AreaCustomerResult a = areaCustomers();
+        AreaCustomerResult b = new AreaCustomerResult("50110002", a.period(), 25.0, 65.0, 10.0, 75.0, 35.0,
+                9_000L, 30_000L, 2.0, 5.0, 100.0, a.residentMonthly(), a.touristMonthly(), a.jejuAvgMonthly(),
+                a.touristFlow(), a.meta());
+        EvidenceSnapshot snapshot = new EvidenceSnapshot(null, b, null, null, List.of(
+                new EvidenceSnapshot.NamedAreaCustomers("조천읍", a),
+                new EvidenceSnapshot.NamedAreaCustomers("한림읍", b)));
+
+        List<Chart> charts = assembler.build(List.of("customerMix", "ticketSize", "areaMonthly"), snapshot);
+
+        Chart mix = chart(charts, "customerMix");
+        assertThat(mix.type()).isEqualTo("bar");
+        assertThat(mix.datasets()).containsExactly(
+                new ChartDataset("조천읍", List.of(30.0, 60.0, 10.0), null),
+                new ChartDataset("한림읍", List.of(25.0, 65.0, 10.0), null));
+        assertThat(chart(charts, "ticketSize").datasets()).extracting(ChartDataset::label).containsExactly("조천읍", "한림읍");
+        Chart monthly = chart(charts, "areaMonthly");
+        assertThat(monthly.datasets().get(0)).isEqualTo(new ChartDataset("조천읍", List.of(3_000.0, 4_200.0), null));
+    }
+
+    @Test
     void 요청_순서를_유지하고_유효한_차트를_최대_세_개만_반환한다() {
         List<Chart> charts = assembler.build(
                 List.of("touristFlow", "unknown", "competition", "customerMix", "areaMonthly", "industrySeason"),

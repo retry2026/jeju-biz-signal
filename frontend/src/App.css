@@ -48,7 +48,7 @@
 .hero {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 아래 선택 버튼과 같은 50:50이라 세로선이 위아래로 이어진다 */
   color: var(--paper);
   background: var(--basalt);
 }
@@ -57,7 +57,7 @@
 .hero-copy h1 { margin-bottom: 26px; font-size: clamp(48px, 6vw, 80px); font-weight: 800; line-height: 1.08; letter-spacing: -0.03em; }
 .hero-copy h1 em { font-style: normal; color: var(--tangerine); }
 .hero-lead { max-width: 30em; margin: 0; color: #cfd3cf; font-size: 21px; line-height: 1.6; }
-.hero-preview { margin: 0; padding: 72px 64px 56px 48px; border-left: 1px solid var(--basalt-line); list-style: none; display: flex; flex-direction: column; justify-content: center; gap: 30px; }
+.hero-preview { margin: 0; padding: 72px 64px 56px 64px; list-style: none; display: flex; flex-direction: column; justify-content: center; gap: 30px; }
 .hero-preview li { display: grid; grid-template-columns: 52px 1fr; align-items: baseline; }
 .preview-no { color: var(--tangerine); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hero-preview strong { display: block; margin-bottom: 6px; font-size: 22px; }
