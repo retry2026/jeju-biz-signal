@@ -153,6 +153,17 @@ class ChartAssemblerTest {
                 .orElseThrow();
     }
 
+    @Test
+    void 반경을_물어도_경쟁_차트는_동네_점포_수라_범위는_AREA다() {
+        CompetitionResult radius = new CompetitionResult("50110001", "CAFE", 4, 3.0, 1.3, 500, 2,
+                new MetricMeta(COMPETITION_SOURCE, null, "RADIUS", false, null));
+
+        Chart chart = assembler.build(List.of("competition"), new EvidenceSnapshot(radius, null, null, null)).get(0);
+
+        assertThat(chart.scope()).isEqualTo("AREA");
+        assertThat(chart.datasets().get(0).data()).containsExactly(4.0, 3.0);
+    }
+
     private static EvidenceSnapshot completeSnapshot() {
         CompetitionResult competition = new CompetitionResult(
                 "50110001",
