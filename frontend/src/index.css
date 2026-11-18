@@ -1,12 +1,33 @@
 :root {
-  font-family: system-ui, 'Segoe UI', sans-serif;
-  color: #202c2a;
-  background: #f3f6f3;
+  --basalt: #1d211f;
+  --basalt-line: #3a403c;
+  --basalt-muted: #a9b0ab;
+  --stone: #5f6560;
+  --line: #d9dad5;
+  --paper: #f4f4f0;
+  --white: #ffffff;
+  --sea: #0f4c6e;
+  --sea-dark: #0b3a55;
+  --sea-tint: #e3edf2;
+  --tangerine: #e2702a;
+  --tangerine-ink: #2a1305;
+  --tangerine-tint: #fbeadd;
+  --warn-ink: #8a4210;
+  --danger-ink: #9c2f22;
+  --resident: #0f4c6e;
+  --domestic: #e2702a;
+  --foreign: #8f9891;
+  --radius: 6px;
+
+  font-family: Pretendard, 'Pretendard Variable', system-ui, 'Malgun Gothic', sans-serif;
+  color: var(--basalt);
+  background: var(--paper);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 18px;
+  word-break: keep-all;
 }
 
 * { box-sizing: border-box; }
@@ -17,12 +38,13 @@ body {
   min-height: 100vh;
 }
 
-button, select, textarea { font: inherit; }
+h1, h2, h3, h4, h5, p { margin-top: 0; }
+button, select, textarea, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 :focus-visible {
-  outline: 3px solid #d67828;
+  outline: 3px solid var(--tangerine);
   outline-offset: 3px;
 }
 

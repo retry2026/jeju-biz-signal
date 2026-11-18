@@ -141,13 +141,16 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">제주 상권 신호등</p>
-          <h1>도민일까, 관광객일까</h1>
-        </div>
+      <header className="topbar">
+        <p className="brand">
+          <span className="signal" aria-hidden="true"><i /><i /><i /></span>
+          제주 상권 신호등
+        </p>
+        {page === 'start' && meta && (
+          <p className="topbar-meta">공개 데이터 기준 · 점포 {meta.dataAsOf.store} · 동네 소비 {meta.dataAsOf.areaSpend}</p>
+        )}
         {page !== 'start' && (
-          <button className="text-button" type="button" onClick={reset}>
+          <button className="ghost-button" type="button" onClick={reset}>
             처음으로
           </button>
         )}
@@ -162,7 +165,7 @@ function App() {
         </div>
       )}
 
-      {!meta && !metaError && <p className="loading-message" role="status">화면 정보를 불러오는 중입니다…</p>}
+      {!meta && !metaError && <p className="loading-message page-loading" role="status">화면 정보를 불러오는 중입니다…</p>}
 
       {meta && page === 'start' && (
         <StartPage onSelect={startConversation} />
@@ -197,7 +200,7 @@ function App() {
         />
       )}
 
-      {meta && (
+      {meta && page !== 'start' && (
         <footer className="app-footer">
           데이터 기준일 · 점포 {meta.dataAsOf.store} · 동네 소비 {meta.dataAsOf.areaSpend} · 업종 카드 {meta.dataAsOf.industrySpend} · 입도객 {meta.dataAsOf.arrivals}
         </footer>

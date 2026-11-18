@@ -19,51 +19,64 @@ export function ConditionPage({
   onIndustryChange,
   onContinue,
 }: ConditionPageProps) {
+  // 동네가 더 많은 제주시를 먼저 보여준다 (가나다순이면 서귀포시가 먼저 온다).
   const cities = [...new Set(areas.map((area) => area.city))]
+    .sort((a, b) => Number(b === '제주시') - Number(a === '제주시'))
+  const areaName = areas.find((area) => area.code === selectedArea)?.name
+  const industryName = industries.find((industry) => industry.code === selectedIndustry)?.name
 
   return (
-    <section className="page-card" aria-labelledby="condition-title">
-      <p className="step-label">2 / 3 · 분석 조건</p>
-      <h2 id="condition-title">어느 동네, 어떤 업종인가요?</h2>
-      <div className="form-field">
-        <label htmlFor="area">지역</label>
-        <select id="area" value={selectedArea} onChange={(event) => onAreaChange(event.target.value)}>
-          <option value="">읍·면·동을 선택해 주세요</option>
-          {cities.map((city) => (
-            <optgroup key={city} label={city}>
+    <section className="conditions" aria-labelledby="condition-title">
+      <div className="conditions-areas">
+        <h2 id="condition-title">어느 동네인가요?</h2>
+        <p className="page-sub">읍·면·동 하나를 눌러 주세요.</p>
+        {cities.map((city) => (
+          <fieldset className="city-group" key={city}>
+            <legend>{city}</legend>
+            <div className="area-grid">
               {areas.filter((area) => area.city === city).map((area) => (
-                <option key={area.code} value={area.code}>{area.name}</option>
+                <button
+                  aria-pressed={selectedArea === area.code}
+                  className={`area-button${selectedArea === area.code ? ' is-selected' : ''}`}
+                  key={area.code}
+                  onClick={() => onAreaChange(area.code)}
+                  type="button"
+                >
+                  {area.name}
+                </button>
               ))}
-            </optgroup>
-          ))}
-        </select>
+            </div>
+          </fieldset>
+        ))}
       </div>
-      <fieldset className="form-field">
-        <legend>업종</legend>
-        <div className="industry-grid">
-          {industries.map((industry) => (
-            <button
-              aria-pressed={selectedIndustry === industry.code}
-              className={`industry-button${selectedIndustry === industry.code ? ' is-selected' : ''}`}
-              key={industry.code}
-              onClick={() => onIndustryChange(industry.code)}
-              type="button"
-            >
-              {industry.name}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <div className="page-actions">
+
+      <aside className="conditions-side">
+        <fieldset className="industry-group">
+          <legend>업종</legend>
+          <div className="industry-list">
+            {industries.map((industry) => (
+              <button
+                aria-pressed={selectedIndustry === industry.code}
+                className={`industry-button${selectedIndustry === industry.code ? ' is-selected' : ''}`}
+                key={industry.code}
+                onClick={() => onIndustryChange(industry.code)}
+                type="button"
+              >
+                {industry.name}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <button
-          className="primary-button"
+          className="go-button"
           disabled={!selectedArea || !selectedIndustry}
           onClick={onContinue}
           type="button"
         >
           질문하러 가기
+          <span>{areaName && industryName ? `${areaName} · ${industryName}` : '동네와 업종을 골라 주세요'}</span>
         </button>
-      </div>
+      </aside>
     </section>
   )
 }
