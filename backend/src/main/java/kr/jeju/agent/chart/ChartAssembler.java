@@ -37,6 +37,20 @@ public class ChartAssembler {
     }
 
     private Chart buildChart(String chartId, EvidenceSnapshot results) {
+        List<EvidenceSnapshot.NamedAreaCustomers> compared =
+                results.comparedAreas() == null ? List.of() : results.comparedAreas();
+        if (compared.size() >= 2) {
+            // 두 동네를 조회했으면 마지막 동네 하나만 그리지 않고, 동네 이름을 범례로 나란히 그린다.
+            Chart comparison = switch (chartId) {
+                case "customerMix" -> customerMixComparison(compared);
+                case "ticketSize" -> ticketSizeComparison(compared);
+                case "areaMonthly" -> areaMonthlyComparison(compared);
+                default -> null;
+            };
+            if (comparison != null) {
+                return comparison;
+            }
+        }
         return switch (chartId) {
             case "customerMix" -> customerMix(results.areaCustomers());
             case "areaMonthly" -> areaMonthly(results.areaCustomers());
@@ -47,6 +61,70 @@ public class ChartAssembler {
             case "myStoreVsArea" -> myStoreVsArea(results.areaCustomers(), results.myStore());
             default -> null;
         };
+    }
+
+    private Chart customerMixComparison(List<EvidenceSnapshot.NamedAreaCustomers> areas) {
+        AreaCustomerResult first = areas.get(0).result();
+        return new Chart(
+                "customerMix",
+                "bar",
+                "동네 손님 구성 비교",
+                List.of("도민", "내국인 관광객", "외국인 관광객"),
+                areas.stream().map(a -> new ChartDataset(a.name(),
+                        List.of(a.result().residentShare(), a.result().domesticShare(), a.result().foreignShare()),
+                        null)).toList(),
+                "%",
+                source(first.meta(), first.meta().period()),
+                first.meta().scope()
+        );
+    }
+
+    private Chart ticketSizeComparison(List<EvidenceSnapshot.NamedAreaCustomers> areas) {
+        AreaCustomerResult first = areas.get(0).result();
+        return new Chart(
+                "ticketSize",
+                "bar",
+                "건당 결제액 비교",
+                List.of("도민", "관광객"),
+                areas.stream().map(a -> new ChartDataset(a.name(), Arrays.asList(
+                        a.result().residentTicket() == null ? null : a.result().residentTicket().doubleValue(),
+                        a.result().touristTicket() == null ? null : a.result().touristTicket().doubleValue()),
+                        null)).toList(),
+                "원",
+                source(first.meta(), first.meta().period()),
+                first.meta().scope()
+        );
+    }
+
+    /** 동네마다 도민과 관광객 선을 다 그리면 선이 너무 많아, 동네별 외식 결제 합계(도민 + 관광객) 한 줄씩 그린다. */
+    private Chart areaMonthlyComparison(List<EvidenceSnapshot.NamedAreaCustomers> areas) {
+        AreaCustomerResult first = areas.get(0).result();
+        List<String> months = first.residentMonthly().stream().map(MonthlyPoint::ym).toList();
+        List<ChartDataset> datasets = new ArrayList<>();
+        for (EvidenceSnapshot.NamedAreaCustomers area : areas) {
+            List<MonthlyPoint> resident = area.result().residentMonthly();
+            List<MonthlyPoint> tourist = area.result().touristMonthly();
+            if (!resident.stream().map(MonthlyPoint::ym).toList().equals(months) || tourist.size() != resident.size()) {
+                return null; // 기간이 다르면 나란히 그릴 수 없어 기본 차트로 돌아간다.
+            }
+            List<Double> totals = new ArrayList<>();
+            for (int i = 0; i < resident.size(); i++) {
+                Double r = resident.get(i).value();
+                Double t = tourist.get(i).value();
+                totals.add(r == null || t == null ? null : round(r + t));
+            }
+            datasets.add(new ChartDataset(area.name(), totals, null));
+        }
+        return new Chart(
+                "areaMonthly",
+                "line",
+                "동네 외식 결제 월별 추이 비교",
+                months,
+                datasets,
+                "원",
+                source(first.meta(), first.meta().period()),
+                first.meta().scope()
+        );
     }
 
     private Chart customerMix(AreaCustomerResult result) {

@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +54,11 @@ public class AgentService implements ChatAgent {
 
     /** 행정동 코드 → 화면 이름 (예: 50110660 → 노형동). 모르는 코드면 null. */
     private final Function<String, String> areaNames;
+    /**
+     * 화면 이름 → 행정동 코드 (전체 동네). 질문에 다른 동네 이름이 나오면 코드를 알려 주어,
+     * LLM이 비교할 동네의 코드를 짐작해 넣지 않게 한다.
+     */
+    private final Supplier<Map<String, String>> areaCodesByName;
 
     public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
@@ -64,7 +70,15 @@ public class AgentService implements ChatAgent {
     public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
             int maxToolCalls, Function<String, String> areaNames) {
+        this(llm, competitionMetric, areaCustomerMetric, industryTourismMetric, chartAssembler, systemPrompt,
+                maxToolCalls, areaNames, Map::of);
+    }
+
+    public AgentService(LlmGateway llm, CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
+            IndustryTourismMetric industryTourismMetric, ChartAssembler chartAssembler, String systemPrompt,
+            int maxToolCalls, Function<String, String> areaNames, Supplier<Map<String, String>> areaCodesByName) {
         this.areaNames = areaNames;
+        this.areaCodesByName = areaCodesByName;
         this.llm = llm;
         this.competitionMetric = competitionMetric;
         this.areaCustomerMetric = areaCustomerMetric;
@@ -112,7 +126,7 @@ public class AgentService implements ChatAgent {
             }
         }
         AgentAnswer response = assemble(reply, collector, myStore(request), request.message().contains("매출"));
-        onEvidence.accept(collector.snapshot(myStore(request)));
+        onEvidence.accept(collector.snapshot(myStore(request), areaNames));
         lastTypes.put(request.sessionId(), response.type());
 
         log.info("chat session={} type={} tools={} ms={}", request.sessionId(), response.type(),
@@ -149,7 +163,7 @@ public class AgentService implements ChatAgent {
         }
         chartIds = chartIds.stream().limit(MAX_CHARTS).toList();
         return new AgentAnswer(type, summary, sections,
-                chartAssembler.build(chartIds, collector.snapshot(myStore)),
+                chartAssembler.build(chartIds, collector.snapshot(myStore, areaNames)),
                 collector.evidence(), limitBuilder.build(collector.metas()), suggestions, null);
     }
 
@@ -172,6 +186,9 @@ public class AgentService implements ChatAgent {
         } else {
             sb.append("- 지역(행정동 코드): ").append(request.area()).append('\n');
         }
+        mentionedAreas(request.message(), request.area()).forEach((name, code) ->
+                sb.append("- 질문에 나온 다른 지역: ").append(name).append(" (도구에 넘길 행정동 코드: ").append(code)
+                        .append(". 비교를 물으면 이 코드로 같은 도구를 한 번 더 부른다)\n"));
         String industryName = InputGuard.INDUSTRY_NAMES.get(request.industry());
         if (industryName != null) {
             sb.append("- 업종: ").append(industryName).append(" (도구에 넘길 업종 코드: ").append(request.industry())
@@ -252,6 +269,22 @@ public class AgentService implements ChatAgent {
             case "을", "를" -> batchim ? "을" : "를";
             default -> batchim ? "과" : "와";
         };
+    }
+
+    /**
+     * 질문에 나온 다른 동네 이름과 코드. "한림읍"처럼 전체 이름이나 "한림"처럼 읍·면·동을 뗀 이름(두 글자 이상)을 찾는다.
+     * 화면에서 고른 동네는 이미 [조건]에 있으므로 뺀다.
+     */
+    Map<String, String> mentionedAreas(String message, String selectedArea) {
+        Map<String, String> found = new java.util.TreeMap<>();
+        areaCodesByName.get().forEach((name, code) -> {
+            String shortName = name.replaceAll("[읍면동]$", "");
+            boolean mentioned = message.contains(name) || (shortName.length() >= 2 && message.contains(shortName));
+            if (mentioned && !code.equals(selectedArea)) {
+                found.put(name, code);
+            }
+        });
+        return found;
     }
 
     /** 같은 달의 작년 매출이 함께 있어야 차트가 내 가게 전년 대비를 계산한다. */

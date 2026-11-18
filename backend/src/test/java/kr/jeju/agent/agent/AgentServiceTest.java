@@ -171,6 +171,24 @@ class AgentServiceTest {
     }
 
     @Test
+    void 질문에_나온_다른_동네의_코드를_LLM에_알려_준다() {
+        List<String> prompts = new java.util.ArrayList<>();
+        LlmGateway llm = (s, sys, user, t) -> {
+            prompts.add(user);
+            return new AgentReply("ANSWER", "요약", List.of(), List.of(), List.of(), null);
+        };
+        AgentService service = new AgentService(llm, db.competition, db.areaCustomers, db.industryTourism,
+                new ChartAssembler(), "system", 6, code -> null,
+                () -> java.util.Map.of("한림읍", "50119999", "애월읍", AEWOL, "이도1동", "50110580"));
+
+        service.answer(request("STARTUP", "이 동네랑 한림 손님 구성 비교해줘", null));
+
+        assertThat(prompts.get(0)).contains("질문에 나온 다른 지역: 한림읍 (도구에 넘길 행정동 코드: 50119999")
+                .doesNotContain("이도1동");
+        assertThat(service.mentionedAreas("애월읍과 한림읍 비교", AEWOL)).containsOnlyKeys("한림읍");
+    }
+
+    @Test
     void 지표가_실패하면_예외_대신_LLM이_읽을_문장을_돌려준다() {
         EvidenceCollector collector = new EvidenceCollector();
         AgentTools tools = new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 6);

@@ -48,7 +48,8 @@ export function ChartView({ chart }: ChartViewProps) {
         borderColor: chart.type === 'doughnut' ? '#ffffff' : color,
         backgroundColor: chart.type === 'doughnut'
           ? [SEA, TANGERINE, GRAY]
-          : chart.type === 'bar' ? [SEA, GRAY, TANGERINE] : color,
+          // 막대가 한 묶음이면 막대마다 색을 다르게, 동네 비교처럼 여러 묶음이면 묶음(동네)마다 한 색으로 칠한다.
+          : chart.type === 'bar' && chart.datasets.length === 1 ? [SEA, GRAY, TANGERINE] : color,
         borderDash: dataset.dashed ? [6, 4] : undefined,
         borderWidth: chart.type === 'line' ? 2.5 : chart.type === 'doughnut' ? 2 : 0,
         borderRadius: chart.type === 'bar' ? 3 : 0,

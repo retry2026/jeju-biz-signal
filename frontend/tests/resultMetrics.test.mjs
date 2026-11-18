@@ -41,3 +41,10 @@ test('shows large won amounts in ten-thousand won and keeps small ones', () => {
   assert.equal(chartUnit(ticket).unit, '원')
   assert.deepEqual(ticket.datasets[0].data.map(chartUnit(ticket).scale), [29_613, 33_865])
 })
+
+test('does not pick a single tile from an area comparison chart', () => {
+  const compared = { ...chart('customerMix', [30.4, 60, 9.6]), datasets: [
+    { label: '조천읍', data: [30.4, 60, 9.6] }, { label: '한림읍', data: [25.4, 64, 10.6] },
+  ] }
+  assert.deepEqual(keyMetrics([compared]), [])
+})

@@ -101,6 +101,10 @@ export function ChatPage({
   }
 
   const context = `${area} · ${industry}`
+  // 다른 동네와 비교할 수 있다는 걸 알 수 있게 비교 예시를 하나 넣는다. 고른 동네와 겹치지 않게 비교 대상을 바꾼다.
+  const compareArea = area === '노형동' ? '애월읍' : '노형동'
+  const examples = [exampleQuestions[0], `이 동네와 ${compareArea} 손님 구성을 비교해 주세요`, ...exampleQuestions.slice(1)]
+    .filter((question): question is string => Boolean(question))
 
   return (
     <section className="chat" aria-labelledby="chat-title">
@@ -215,7 +219,7 @@ export function ChatPage({
         <div className="rail-block">
           <h3 className="rail-title">이렇게 물어볼 수 있어요</h3>
           <div className="example-list">
-            {exampleQuestions.map((question) => (
+            {examples.map((question) => (
               <button
                 className="example-button"
                 disabled={isSending}

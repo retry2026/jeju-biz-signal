@@ -57,6 +57,8 @@ export function chartUnit(chart) {
 
 export function keyMetrics(charts) {
   return charts
+    // 동네 비교 차트는 묶음이 여러 개라 숫자 하나만 크게 띄우면 어느 동네 값인지 알 수 없어 타일을 만들지 않는다.
+    .filter((chart) => chart.datasets.length === 1)
     .map((chart) => pickers[chart.id]?.(chart))
     .filter(Boolean)
     .slice(0, 3)
