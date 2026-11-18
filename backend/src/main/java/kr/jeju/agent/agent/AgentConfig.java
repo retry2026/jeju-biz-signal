@@ -33,7 +33,8 @@ public class AgentConfig {
 
     @Bean
     ChatMemory chatMemory() {
-        return MessageWindowChatMemory.builder().maxMessages(10).build();
+        // 이어지는 질문에 필요한 최근 3번의 질문과 답만 기억한다. 오래된 대화가 새 답변에 섞이지 않게 짧게 둔다.
+        return MessageWindowChatMemory.builder().maxMessages(6).build();
     }
 
     @Bean
