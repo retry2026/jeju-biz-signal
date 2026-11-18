@@ -133,6 +133,44 @@ class AgentServiceTest {
     }
 
     @Test
+    void 기간이_없는_점포_수_근거도_기간을_문자열로_채운다() {
+        EvidenceCollector collector = new EvidenceCollector();
+        new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 6).competition(AEWOL, "CAFE", 500);
+
+        assertThat(collector.evidence()).singleElement()
+                .satisfies(e -> assertThat(e.period()).isNotBlank());
+    }
+
+    @Test
+    void LLM이_다른_업종을_넘겨도_고른_업종으로_계산한다() {
+        LlmGateway wrongIndustry = (s, sys, u, t) -> {
+            ((AgentTools) t).competition(AEWOL, "PUB", null);
+            return new AgentReply("ANSWER", "요약", List.of(), List.of("competition"), List.of(), null);
+        };
+        AgentAnswer cafe = service(wrongIndustry).answer(request("STARTUP", "경쟁이 심한가요?", null));
+
+        EvidenceCollector direct = new EvidenceCollector();
+        new AgentTools(db.competition, db.areaCustomers, db.industryTourism, direct, 6).competition(AEWOL, "CAFE", null);
+        assertThat(cafe.charts().get(0).datasets().get(0).data().get(0))
+                .isEqualTo((double) direct.snapshot(null).competition().storeCount());
+    }
+
+    @Test
+    void 고른_업종과_다른_업종을_물으면_업종을_바꾸라고_되묻는다() {
+        AtomicInteger calls = new AtomicInteger();
+        AgentAnswer r = service(scenarioB(calls)).answer(
+                new AgentRequest("s1", "STARTUP", AEWOL, "PUB", null, "이 동네에 카페 차려도 괜찮을까요?"));
+
+        assertThat(r.type()).isEqualTo("ASK_BACK");
+        assertThat(r.askFor()).isEqualTo("INDUSTRY");
+        assertThat(r.summary()).contains("주점", "카페로 바꿔");
+        assertThat(InputGuard.withRo("주점")).isEqualTo("주점으로");
+        assertThat(calls.get()).isZero();
+        assertThat(InputGuard.otherIndustry(new AgentRequest("s", "EXISTING", AEWOL, "KOREAN", null,
+                "연동에서 고깃집 하는데 카페 손님도 오나요?"))).isEmpty();
+    }
+
+    @Test
     void 도구_호출이_한도를_넘으면_문장으로_막는다() {
         EvidenceCollector collector = new EvidenceCollector();
         AgentTools tools = new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 2);

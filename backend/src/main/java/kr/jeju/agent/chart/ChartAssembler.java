@@ -163,7 +163,8 @@ public class ChartAssembler {
                 )),
                 "개",
                 source(result.meta(), result.meta().period()),
-                result.meta().scope()
+                // 차트 숫자는 반경을 물었어도 항상 동네 점포 수와 제주 평균이다. 반경 점포 수는 근거(meta)에만 남는다.
+                "AREA"
         );
     }
 

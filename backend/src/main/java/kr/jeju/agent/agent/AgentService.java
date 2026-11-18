@@ -82,7 +82,7 @@ public class AgentService implements ChatAgent {
             // 재시도마다 도구와 수집기를 새로 만들어 근거가 두 번 쌓이지 않게 한다.
             collector = new EvidenceCollector();
             AgentTools tools = new AgentTools(competitionMetric, areaCustomerMetric, industryTourismMetric,
-                    collector, maxToolCalls);
+                    collector, maxToolCalls, request.industry());
             try {
                 reply = llm.ask(request.sessionId(), systemPrompt, userMessage(request), tools, attempt);
                 break;

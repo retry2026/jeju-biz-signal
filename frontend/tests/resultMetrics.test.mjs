@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { keyMetrics } from '../src/resultMetrics.js'
+
+const chart = (id, data) => ({ id, type: 'bar', title: '', labels: [], datasets: [{ label: '', data }], unit: '', source: '', scope: 'AREA' })
+
+test('shows chart values as they are without computing new numbers', () => {
+  const metrics = keyMetrics([
+    chart('customerMix', [62.5, 29.5, 8.0]),
+    chart('competition', [180, 69.2]),
+    chart('industrySeason', [100, 120]),
+  ])
+
+  assert.deepEqual(metrics.map((m) => [m.label, m.value, m.unit, m.note]), [
+    ['도민 결제 비중', '62.5', '%', '동네 음식점업 전체'],
+    ['같은 업종 점포', '180', '곳', '제주 동 평균 69.2곳'],
+  ])
+})
+
+test('skips charts whose value is missing and keeps at most three tiles', () => {
+  assert.deepEqual(keyMetrics([chart('customerMix', [null, 1, 2])]), [])
+  const many = keyMetrics([
+    chart('customerMix', [1]), chart('competition', [2]), chart('myStoreVsArea', [-15.2, -3.5]), chart('ticketSize', [9000, 12000]),
+  ])
+  assert.equal(many.length, 3)
+  assert.equal(many[2].note, '동네 외식 -3.5%')
+})
