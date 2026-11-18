@@ -3,6 +3,7 @@ package kr.jeju.agent.chart;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,7 +176,7 @@ public class ChartAssembler {
         }
         Double myStoreYoy = latestYearOverYear(myStore.monthlySales());
         if (myStoreYoy == null) {
-            return null;
+            return myStoreMonthly(myStore.monthlySales());
         }
         return new Chart(
                 "myStoreVsArea",
@@ -190,6 +191,27 @@ public class ChartAssembler {
                 "%",
                 source(area.meta(), area.meta().period()),
                 area.meta().scope()
+        );
+    }
+
+    /** 작년 같은 달 매출이 없어 전년 대비를 낼 수 없으면, 입력한 월매출을 달 순서대로 그대로 보여 준다. */
+    private static Chart myStoreMonthly(List<MonthlySale> monthlySales) {
+        List<MonthlySale> sorted = monthlySales.stream()
+                .sorted(Comparator.comparing(MonthlySale::month))
+                .toList();
+        return new Chart(
+                "myStoreVsArea",
+                "line",
+                "내 가게 월매출",
+                sorted.stream().map(MonthlySale::month).toList(),
+                List.of(new ChartDataset(
+                        "내 가게 월매출",
+                        sorted.stream().map(sale -> (double) sale.amount()).toList(),
+                        null
+                )),
+                "원",
+                "사용자 입력 월매출",
+                "AREA"
         );
     }
 
