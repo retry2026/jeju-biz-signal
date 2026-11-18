@@ -13,10 +13,10 @@ public class InputGuard {
      * 계절 질문에도 쓰여서 넣지 않는다 (예: "겨울만 되면 매출이 줄어요"는 월매출 없이 답할 수 있다).
      */
     private static final List<String> MY_STORE_KEYWORDS =
-            List.of("우리 가게", "내 가게", "우리 매출", "내 매출", "가게 문제", "우리 집 매출");
+            List.of("우리 가게", "내 가게", "우리 매출", "내 매출", "월매출", "가게 문제", "우리 집 매출");
 
     /** 업종 코드별 화면 이름과, 질문에서 그 업종을 가리키는 말. 업종은 화면에서 고른 것 하나로만 답한다. */
-    private static final Map<String, String> INDUSTRY_NAMES = Map.of(
+    static final Map<String, String> INDUSTRY_NAMES = Map.of(
             "CAFE", "카페", "KOREAN", "한식", "CHINESE", "중식", "JAPANESE", "일식",
             "WESTERN", "양식", "PUB", "주점", "FASTFOOD", "패스트푸드");
     private static final Map<String, List<String>> INDUSTRY_WORDS = Map.of(

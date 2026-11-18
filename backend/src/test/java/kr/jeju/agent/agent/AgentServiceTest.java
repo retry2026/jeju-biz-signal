@@ -122,6 +122,21 @@ class AgentServiceTest {
     }
 
     @Test
+    void 매출을_물었는데_LLM이_내_가게_차트를_빠뜨려도_맨_앞에_넣는다() {
+        List<AgentRequest.MonthlySale> sales = List.of(
+                new AgentRequest.MonthlySale("2026-05", 2_000_000L), new AgentRequest.MonthlySale("2025-03", 4_000_000L));
+        LlmGateway llm = (s, sys, user, tools) -> {
+            assertThat(user).contains("작년 같은 달 매출이 없어");
+            ((AgentTools) tools).areaCustomers(AEWOL, null);
+            return new AgentReply("ANSWER", "요약", List.of(), List.of("customerMix", "areaMonthly", "ticketSize"), List.of(), null);
+        };
+        AgentAnswer r = service(llm).answer(request("EXISTING", "동네 결제 흐름과 내 월매출 추이를 비교해줘", sales));
+
+        assertThat(r.charts()).extracting(c -> c.id()).containsExactly("myStoreVsArea", "customerMix", "areaMonthly");
+        assertThat(r.charts().get(0).labels()).containsExactly("2025-03", "2026-05");
+    }
+
+    @Test
     void 지표가_실패하면_예외_대신_LLM이_읽을_문장을_돌려준다() {
         EvidenceCollector collector = new EvidenceCollector();
         AgentTools tools = new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 6);

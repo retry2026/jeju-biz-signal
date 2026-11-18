@@ -23,12 +23,25 @@ interface ChatPageProps {
   onBack: () => void
 }
 
+/**
+ * 브라우저마다 달 입력 모양이 달라 직접 타이핑하지 않도록 목록에서 고르게 한다.
+ * 매출이 확정된 지난달부터 25개월(작년 같은 달 포함)을 최신순으로 둔다.
+ */
+const monthOptions = Array.from({ length: 25 }, (_, offset) => {
+  const date = new Date()
+  date.setDate(1)
+  date.setMonth(date.getMonth() - 1 - offset)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+})
+const presetLengths = [3, 6, 12]
+const formatAmount = (digits: string) => (digits === '' ? '' : Number(digits).toLocaleString('ko-KR'))
+
 const salesErrorMessages = {
   TOO_MANY: '월매출은 최대 12개월까지 입력할 수 있어요.',
   INCOMPLETE: '월과 금액을 모두 입력하거나 입력 행을 삭제해 주세요.',
   INVALID_MONTH: '월을 올바르게 선택해 주세요.',
   DUPLICATE_MONTH: '같은 달을 두 번 입력할 수 없어요.',
-  INVALID_AMOUNT: '매출은 0 이상의 정수(원)로 입력해 주세요.',
+  INVALID_AMOUNT: '매출은 만원 단위 숫자로 입력해 주세요.',
 }
 
 export function ChatPage({
@@ -123,29 +136,50 @@ export function ChatPage({
             <p className="rail-note">
               {needsSales
                 ? '내 가게와 비교하려면 월매출을 입력한 뒤 질문을 다시 보내 주세요.'
-                : '최근 1~12개월 매출을 넣으면 동네 흐름과 나란히 봅니다. 금액은 원 단위입니다.'}
+                : '최근 1~12개월 매출을 넣으면 동네 흐름과 나란히 봅니다. 작년 같은 달도 넣으면 전년 대비를 비교합니다. 금액은 만원 단위입니다.'}
             </p>
             {showSalesEditor && (
               <div id="sales-editor" className="sales-editor">
+                <div className="sales-presets" role="group" aria-label="최근 몇 개월을 입력할지 고르기">
+                  {presetLengths.map((length) => (
+                    <button
+                      className="ghost-button small"
+                      key={length}
+                      type="button"
+                      onClick={() => {
+                        // 이미 적은 금액은 같은 달이면 그대로 두고, 지난달부터 최신순으로 칸을 채운다.
+                        const amounts = new Map(monthlySalesDrafts.map((sale) => [sale.month, sale.amount]))
+                        onMonthlySalesDraftsChange(monthOptions.slice(0, length).map((month) => ({ month, amount: amounts.get(month) ?? '' })))
+                        setSalesError('')
+                      }}
+                    >
+                      최근 {length}개월
+                    </button>
+                  ))}
+                </div>
                 {monthlySalesDrafts.map((sale, index) => (
                   <div className="sales-row" key={`sale-${index}`}>
                     <label>
                       <span>월 {index + 1}</span>
-                      <input
-                        type="month"
+                      <select
                         value={sale.month}
                         onChange={(event) => updateSale(index, 'month', event.target.value)}
-                      />
+                      >
+                        <option value="">달 선택</option>
+                        {monthOptions.map((month) => (
+                          <option key={month} value={month}>{month.slice(0, 4)}년 {Number(month.slice(5))}월</option>
+                        ))}
+                      </select>
                     </label>
                     <label>
-                      <span>매출액 (원)</span>
+                      <span>매출액 (만원)</span>
                       <input
-                        type="number"
-                        min="0"
-                        step="1"
+                        type="text"
                         inputMode="numeric"
-                        value={sale.amount}
-                        onChange={(event) => updateSale(index, 'amount', event.target.value)}
+                        maxLength={11}
+                        placeholder="예: 1,250"
+                        value={formatAmount(sale.amount)}
+                        onChange={(event) => updateSale(index, 'amount', event.target.value.replace(/\D/g, ''))}
                       />
                     </label>
                     <button

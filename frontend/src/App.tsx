@@ -76,7 +76,7 @@ function App() {
     setSessionId(createSessionId())
   }, [])
 
-  useIdleReset(reset)
+  const idleSecondsLeft = useIdleReset(reset, page !== 'start')
 
   const startConversation = (selectedUserType: UserType) => {
     setUserType(selectedUserType)
@@ -204,6 +204,20 @@ function App() {
         <footer className="app-footer">
           데이터 기준일 · 점포 {meta.dataAsOf.store} · 동네 소비 {meta.dataAsOf.areaSpend} · 업종 카드 {meta.dataAsOf.industrySpend} · 입도객 {meta.dataAsOf.arrivals}
         </footer>
+      )}
+
+      {idleSecondsLeft !== null && (
+        <div className="idle-backdrop">
+          <div className="idle-dialog" role="alertdialog" aria-modal="true" aria-labelledby="idle-title" aria-describedby="idle-text">
+            <p id="idle-title" className="idle-title"><strong>{idleSecondsLeft}초</strong> 뒤 처음 화면으로 돌아갑니다</p>
+            <p id="idle-text" className="idle-text">한동안 입력이 없었어요. 고른 조건과 대화는 지워집니다.</p>
+            <div className="idle-actions">
+              <button className="ghost-button" type="button" onClick={reset}>처음으로</button>
+              {/* 화면을 누르는 것만으로 타이머가 다시 시작되므로 따로 할 일이 없다. */}
+              <button className="idle-stay" type="button" autoFocus>계속 보기</button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )

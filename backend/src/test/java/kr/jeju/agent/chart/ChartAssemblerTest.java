@@ -125,13 +125,29 @@ class ChartAssemblerTest {
         );
 
         assertThat(assembler.build(
-                List.of("competition", "industrySeason", "myStoreVsArea"),
+                List.of("competition", "industrySeason"),
                 partial
         )).isEmpty();
         assertThat(assembler.build(
                 List.of("myStoreVsArea"),
                 new EvidenceSnapshot(null, areaCustomers(), null, null)
         )).isEmpty();
+    }
+
+    @Test
+    void 작년_같은_달_매출이_없으면_입력한_월매출을_달_순서대로_보여준다() {
+        EvidenceSnapshot snapshot = new EvidenceSnapshot(null, areaCustomers(), null, new MyStoreInput(List.of(
+                new MonthlySale("2026-05", 2_000_000),
+                new MonthlySale("2025-02", 2_000_000),
+                new MonthlySale("2025-03", 4_000_000))));
+
+        Chart chart = chart(assembler.build(List.of("myStoreVsArea"), snapshot), "myStoreVsArea");
+
+        assertThat(chart.type()).isEqualTo("line");
+        assertThat(chart.labels()).containsExactly("2025-02", "2025-03", "2026-05");
+        assertThat(chart.datasets()).containsExactly(
+                new ChartDataset("내 가게 월매출", List.of(2_000_000.0, 4_000_000.0, 2_000_000.0), null));
+        assertThat(chart.unit()).isEqualTo("원");
     }
 
     @Test

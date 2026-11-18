@@ -1,5 +1,7 @@
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/
 const amountPattern = /^\d+$/
+/** 화면은 0을 덜 누르도록 만원 단위로 받고, 서버에는 원 단위로 보낸다. */
+const WON_PER_UNIT = 10_000
 
 export function parseMonthlySales(drafts) {
   const enteredRows = drafts.filter((row) => row.month.trim() !== '' || row.amount.trim() !== '')
@@ -25,7 +27,7 @@ export function parseMonthlySales(drafts) {
       return { monthlySales: [], error: 'INVALID_AMOUNT' }
     }
 
-    const amount = Number(row.amount)
+    const amount = Number(row.amount) * WON_PER_UNIT
     if (!Number.isSafeInteger(amount)) {
       return { monthlySales: [], error: 'INVALID_AMOUNT' }
     }

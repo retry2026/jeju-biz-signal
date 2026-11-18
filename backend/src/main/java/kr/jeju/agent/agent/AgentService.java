@@ -1,8 +1,11 @@
 package kr.jeju.agent.agent;
 
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -99,7 +102,7 @@ public class AgentService implements ChatAgent {
                         e.getCause() == null ? e.getMessage() : e.getCause().toString());
             }
         }
-        AgentAnswer response = assemble(reply, collector, myStore(request));
+        AgentAnswer response = assemble(reply, collector, myStore(request), request.message().contains("매출"));
         onEvidence.accept(collector.snapshot(myStore(request)));
 
         log.info("chat session={} type={} tools={} ms={}", request.sessionId(), response.type(),
@@ -112,7 +115,7 @@ public class AgentService implements ChatAgent {
         llm.clear(sessionId);
     }
 
-    AgentAnswer assemble(AgentReply reply, EvidenceCollector collector, MyStoreInput myStore) {
+    AgentAnswer assemble(AgentReply reply, EvidenceCollector collector, MyStoreInput myStore, boolean salesQuestion) {
         String type = reply.type() != null && TYPES.contains(reply.type()) ? reply.type() : "ANSWER";
         List<AgentAnswer.Section> sections = orEmpty(reply.sections()).stream()
                 .map(s -> new AgentAnswer.Section(s.id(), s.title(), s.text()))
@@ -124,7 +127,13 @@ public class AgentService implements ChatAgent {
                     List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? askFor(reply.askFor()) : null);
         }
 
-        List<String> chartIds = orEmpty(reply.chartIds()).stream().distinct().limit(MAX_CHARTS).toList();
+        List<String> chartIds = orEmpty(reply.chartIds()).stream().distinct().toList();
+        // 월매출을 넣고 매출을 물었는데 LLM이 내 가게 차트를 빠뜨리면, 사용자가 넣은 숫자가 화면에 안 보이므로 맨 앞에 넣는다.
+        if (salesQuestion && myStore != null && collector.snapshot(myStore).areaCustomers() != null
+                && !chartIds.contains("myStoreVsArea")) {
+            chartIds = Stream.concat(Stream.of("myStoreVsArea"), chartIds.stream()).toList();
+        }
+        chartIds = chartIds.stream().limit(MAX_CHARTS).toList();
         return new AgentAnswer(type, reply.summary(), sections,
                 chartAssembler.build(chartIds, collector.snapshot(myStore)),
                 collector.evidence(), limitBuilder.build(collector.metas()), suggestions, null);
@@ -149,11 +158,22 @@ public class AgentService implements ChatAgent {
         } else {
             sb.append("- 지역(행정동 코드): ").append(request.area()).append('\n');
         }
-        sb.append("- 업종 코드: ").append(request.industry()).append('\n');
+        String industryName = InputGuard.INDUSTRY_NAMES.get(request.industry());
+        if (industryName != null) {
+            sb.append("- 업종: ").append(industryName).append(" (도구에 넘길 업종 코드: ").append(request.industry())
+                    .append(". 답변에는 코드 대신 업종 이름을 쓴다)\n");
+        } else {
+            sb.append("- 업종 코드: ").append(request.industry()).append('\n');
+        }
         if (!request.monthlySales().isEmpty()) {
             sb.append("- 사용자가 입력한 월매출(원): ");
             request.monthlySales().forEach(s -> sb.append(s.month()).append('=').append(s.amount()).append(' '));
-            sb.append("\n  (이 숫자와 동네 결제 전년 대비를 비교할 때는 myStoreVsArea 차트를 고르고, 비율은 직접 계산하지 말고 '줄었다/늘었다'로만 말한다)\n");
+            if (hasSameMonthLastYear(request.monthlySales())) {
+                sb.append("\n  (이 숫자와 동네 결제 전년 대비를 비교할 때는 myStoreVsArea 차트를 고르고, 비율은 직접 계산하지 말고 '줄었다/늘었다'로만 말한다)\n");
+            } else {
+                sb.append("\n  (작년 같은 달 매출이 없어 내 가게 전년 대비는 알 수 없다. 비교를 물으면 myStoreVsArea(내 월매출 추이)와 areaMonthly(동네 월별 결제)를 함께 고르고,")
+                        .append(" 매출이 오르내린 달을 동네 흐름과 말로만 견준다. 전년 대비를 보려면 작년 같은 달 매출도 넣어 달라고 advice에 한 줄 쓴다)\n");
+            }
         }
         sb.append("\n[질문]\n").append(request.message());
         // 작은 모델은 JSON 형식 지시를 보고 도구 없이 바로 답하는 경향이 있어 순서를 마지막에 다시 못박는다.
@@ -162,6 +182,12 @@ public class AgentService implements ChatAgent {
                 .append(" 숫자끼리 더하거나 빼서 새 숫자를 만들지 않는다 (관광객 합계는 touristShare를 그대로 쓴다).")
                 .append("\n3. 데이터에 없는 질문이면 도구 없이 REFUSE로 답한다.");
         return sb.toString();
+    }
+
+    /** 같은 달의 작년 매출이 함께 있어야 차트가 내 가게 전년 대비를 계산한다. */
+    static boolean hasSameMonthLastYear(List<AgentRequest.MonthlySale> sales) {
+        Set<String> months = sales.stream().map(AgentRequest.MonthlySale::month).collect(Collectors.toSet());
+        return months.stream().anyMatch(m -> months.contains(YearMonth.parse(m).minusYears(1).toString()));
     }
 
     /** 화면은 정해진 네 값만 받는다. LLM이 다른 값을 쓰면 질문을 다시 써 달라는 MESSAGE로 본다. */

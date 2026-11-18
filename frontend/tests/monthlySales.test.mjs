@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseMonthlySales } from '../src/monthlySales.js'
 
-test('parses complete monthly sales and ignores empty rows', () => {
+test('parses complete monthly sales in ten-thousand won units and ignores empty rows', () => {
   assert.deepEqual(parseMonthlySales([
-    { month: '2025-01', amount: '120000' },
+    { month: '2025-01', amount: '1250' },
     { month: '', amount: '' },
   ]), {
-    monthlySales: [{ month: '2025-01', amount: 120000 }],
+    monthlySales: [{ month: '2025-01', amount: 12_500_000 }],
     error: null,
   })
 })
@@ -16,7 +16,7 @@ test('rejects incomplete or invalid monthly sales entries', () => {
   assert.equal(parseMonthlySales([{ month: '2025-01', amount: '' }]).error, 'INCOMPLETE')
   assert.equal(parseMonthlySales([{ month: '2025-13', amount: '1000' }]).error, 'INVALID_MONTH')
   assert.equal(parseMonthlySales([{ month: '2025-01', amount: '1.5' }]).error, 'INVALID_AMOUNT')
-  assert.equal(parseMonthlySales([{ month: '2025-01', amount: '9007199254740992' }]).error, 'INVALID_AMOUNT')
+  assert.equal(parseMonthlySales([{ month: '2025-01', amount: '900719925474100' }]).error, 'INVALID_AMOUNT')
 })
 
 test('rejects duplicate months and more than twelve entries', () => {
