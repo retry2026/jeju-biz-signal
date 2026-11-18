@@ -25,3 +25,8 @@ test('skips charts whose value is missing and keeps at most three tiles', () => 
   assert.equal(many.length, 3)
   assert.equal(many[2].note, '동네 외식 -3.5%')
 })
+
+test('does not show a monthly sales line as year-over-year change', () => {
+  const line = { ...chart('myStoreVsArea', [2000000, 4000000]), type: 'line', unit: '원' }
+  assert.deepEqual(keyMetrics([line]), [])
+})

@@ -24,8 +24,9 @@ const pickers = {
     }
   },
   myStoreVsArea: (chart) => {
+    // 작년 같은 달이 없으면 같은 id로 월매출 추이(line)가 오므로 전년 대비 막대(bar)일 때만 쓴다.
     const [mine, area] = chart.datasets[0]?.data ?? []
-    return isNumber(mine) && {
+    return chart.type === 'bar' && isNumber(mine) && {
       label: '내 가게 전년 대비',
       value: format(mine, 1),
       unit: '%',

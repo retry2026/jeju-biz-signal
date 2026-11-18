@@ -152,7 +152,8 @@
 .sales-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .sales-row label:first-child { grid-column: 1 / -1; }
 .sales-row label { display: grid; gap: 4px; color: var(--stone); font-size: 13px; font-weight: 600; }
-.sales-row input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #aeb2ab; border-radius: var(--radius); background: var(--white); font-size: 15px; }
+.sales-row input, .sales-row select { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #aeb2ab; border-radius: var(--radius); background: var(--white); font-size: 15px; }
+.sales-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .form-error { margin: 0; color: var(--danger-ink); font-size: 14px; font-weight: 600; }
 .example-list { display: grid; gap: 8px; }
 .example-button { min-height: 52px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); text-align: left; background: var(--paper); font-size: 16px; line-height: 1.4; }
