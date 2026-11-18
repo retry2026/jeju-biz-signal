@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.Consumer;
@@ -44,6 +45,11 @@ public class AgentService implements ChatAgent {
     private final int maxToolCalls;
     private final InputGuard inputGuard = new InputGuard();
     private final LimitBuilder limitBuilder = new LimitBuilder();
+    /**
+     * 세션별 직전 답변 유형. "구체적으로요?" 같은 이어 묻는 질문은 직전 답이 거절이면 이어받을 내용이 없는데,
+     * LLM은 대화 기억만 보고 거절된 주제를 억지로 이어 답하는 경우가 있어 코드가 직전 유형을 짚어 준다.
+     */
+    private final Map<String, String> lastTypes = new ConcurrentHashMap<>();
 
     /** 행정동 코드 → 화면 이름 (예: 50110660 → 노형동). 모르는 코드면 null. */
     private final Function<String, String> areaNames;
@@ -107,6 +113,7 @@ public class AgentService implements ChatAgent {
         }
         AgentAnswer response = assemble(reply, collector, myStore(request), request.message().contains("매출"));
         onEvidence.accept(collector.snapshot(myStore(request)));
+        lastTypes.put(request.sessionId(), response.type());
 
         log.info("chat session={} type={} tools={} ms={}", request.sessionId(), response.type(),
                 collector.evidence().stream().map(e -> e.tool()).toList(), System.currentTimeMillis() - start);
@@ -116,6 +123,7 @@ public class AgentService implements ChatAgent {
     @Override
     public void endSession(String sessionId) {
         llm.clear(sessionId);
+        lastTypes.remove(sessionId);
     }
 
     AgentAnswer assemble(AgentReply reply, EvidenceCollector collector, MyStoreInput myStore, boolean salesQuestion) {
@@ -178,6 +186,13 @@ public class AgentService implements ChatAgent {
                 sb.append("\n  (작년 같은 달 매출이 없어 내 가게 전년 대비는 알 수 없다. 비교를 물으면 myStoreVsArea(내 월매출 추이)와 areaMonthly(동네 월별 결제)를 함께 고르고,")
                         .append(" 매출이 오르내린 달을 동네 흐름과 말로만 견준다. 전년 대비를 보려면 작년 같은 달 매출도 넣어 달라고 advice에 한 줄 쓴다)\n");
             }
+        }
+        String lastType = lastTypes.get(request.sessionId());
+        if ("REFUSE".equals(lastType)) {
+            sb.append("\n[직전 답변]\n직전 질문은 데이터로 답할 수 없어 거절(REFUSE)했다. 이번 질문이 그 내용을 이어 묻는 것이면(\"구체적으로요?\", \"더 자세히\")")
+                    .append(" 거절한 주제를 지어내 답하지 말고 다시 REFUSE로 답한다. 새로운 질문이면 평소대로 답한다.\n");
+        } else if ("ASK_BACK".equals(lastType)) {
+            sb.append("\n[직전 답변]\n직전에는 질문이 막연해 되물었다(ASK_BACK). 이번 질문이 여전히 무엇을 알고 싶은지 드러나지 않으면 다시 ASK_BACK으로 답한다.\n");
         }
         sb.append("\n[질문]\n").append(request.message());
         // 작은 모델은 JSON 형식 지시를 보고 도구 없이 바로 답하는 경향이 있어 순서를 마지막에 다시 못박는다.

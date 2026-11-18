@@ -151,6 +151,24 @@ class AgentServiceTest {
     }
 
     @Test
+    void 직전_답변이_거절이면_다음_질문에_그_사실을_알려_준다() {
+        List<String> prompts = new java.util.ArrayList<>();
+        LlmGateway llm = (s, sys, user, t) -> {
+            prompts.add(user);
+            return new AgentReply("REFUSE", "메뉴 가격은 알 수 없어요.", List.of(), List.of(), List.of(), null);
+        };
+        AgentService service = service(llm);
+        service.answer(request("STARTUP", "메뉴 가격 얼마로 해요?", null));
+        service.answer(request("STARTUP", "구체적으로요?", null));
+        service.endSession("s1");
+        service.answer(request("STARTUP", "구체적으로요?", null));
+
+        assertThat(prompts.get(0)).doesNotContain("[직전 답변]");
+        assertThat(prompts.get(1)).contains("[직전 답변]", "REFUSE");
+        assertThat(prompts.get(2)).doesNotContain("[직전 답변]");
+    }
+
+    @Test
     void 지표가_실패하면_예외_대신_LLM이_읽을_문장을_돌려준다() {
         EvidenceCollector collector = new EvidenceCollector();
         AgentTools tools = new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 6);
