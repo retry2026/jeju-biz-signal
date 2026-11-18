@@ -198,7 +198,11 @@
 .chart-doughnut { height: 200px; }
 .chart-source { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--stone); font-size: 12px; }
 .answer-details { margin-top: 16px; color: var(--stone); font-size: 15px; }
-.answer-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.answer-details summary { min-height: 44px; display: inline-flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); cursor: pointer; font-weight: 600; list-style: none; }
+.answer-details summary::-webkit-details-marker { display: none; }
+.answer-details summary::after { content: ""; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 0.15s; }
+.answer-details[open] summary::after { margin-top: 4px; transform: rotate(-135deg); }
+.answer-details summary:hover { border-color: var(--basalt); color: var(--basalt); }
 .answer-details ul { margin: 6px 0 0; padding-left: 20px; line-height: 1.7; }
 .answer-details .limits { color: #4a4f4b; }
 .next-questions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
