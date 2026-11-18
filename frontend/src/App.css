@@ -235,3 +235,12 @@
   .tile-chart, .tile-text { grid-column: 1 / -1; }
   .question-bubble { max-width: 90%; }
 }
+
+.idle-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(29 33 31 / 55%); }
+.idle-dialog { width: min(440px, 100%); display: grid; gap: 12px; padding: 28px; border-radius: var(--radius); background: var(--white); box-shadow: 0 12px 40px rgb(0 0 0 / 25%); }
+.idle-title { margin: 0; font-size: 22px; font-weight: 700; }
+.idle-title strong { color: var(--tangerine); font-variant-numeric: tabular-nums; }
+.idle-text { margin: 0; color: var(--stone); font-size: 16px; }
+.idle-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.idle-stay { min-height: 52px; border: 0; border-radius: var(--radius); color: #fff; background: var(--basalt); font-size: 17px; font-weight: 700; }
+.idle-stay:hover { background: #000; }
