@@ -135,7 +135,9 @@ public class AgentService implements ChatAgent {
         List<String> suggestions = orEmpty(reply.suggestions()).stream().limit(3).map(AgentService::readable).toList();
 
         if (!"ANSWER".equals(type)) {
-            return new AgentAnswer(type, summary, "ASK_BACK".equals(type) ? List.of() : sections,
+            // 거절과 되묻기는 요약과 대안 질문만 보낸다. 본문을 남기면 "답할 수 없다"면서 대안 질문의 답을 먼저 늘어놓거나,
+            // 도구 없이 앞 대화의 숫자를 옮겨 쓰는 경우가 있다.
+            return new AgentAnswer(type, summary, List.of(),
                     List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? askFor(reply.askFor()) : null);
         }
 

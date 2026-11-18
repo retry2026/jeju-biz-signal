@@ -92,12 +92,14 @@ class AgentServiceTest {
     }
 
     @Test
-    void 거절이면_차트와_근거와_한계를_비운다() {
-        LlmGateway refuse = (s, sys, u, t) -> new AgentReply("REFUSE", "시간대 데이터는 없습니다.", List.of(),
+    void 거절이면_본문과_차트와_근거와_한계를_비운다() {
+        LlmGateway refuse = (s, sys, u, t) -> new AgentReply("REFUSE", "시간대 데이터는 없습니다.",
+                List.of(new AgentReply.SectionText("customers", "동네 손님", "관광객 비중은 69.6%입니다.")),
                 List.of("customerMix"), List.of("손님 구성을 볼까요?"), null);
         AgentAnswer r = service(refuse).answer(request("STARTUP", "저녁 장사 어때요?", null));
 
         assertThat(r.type()).isEqualTo("REFUSE");
+        assertThat(r.sections()).isEmpty();
         assertThat(r.charts()).isEmpty();
         assertThat(r.evidence()).isEmpty();
         assertThat(r.limits()).isEmpty();
