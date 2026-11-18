@@ -39,7 +39,9 @@ public class EvidenceCollector {
 
     private void record(String tool, MetricMeta meta) {
         metas.add(meta);
-        evidence.add(new AgentAnswer.Evidence(tool, meta.source(), meta.period(), meta.scope(), meta.lowSample()));
+        // 점포 수(상가정보)는 기간이 아니라 한 시점 자료라 period가 없다. 화면은 기간을 문자열로 받으므로 채워 보낸다.
+        String period = meta.period() != null ? meta.period() : "한 시점 기준";
+        evidence.add(new AgentAnswer.Evidence(tool, meta.source(), period, meta.scope(), meta.lowSample()));
     }
 
     public int callCount() {

@@ -22,9 +22,18 @@ public class AgentTools {
     private final IndustryTourismMetric industryTourismMetric;
     private final EvidenceCollector collector;
     private final int maxCalls;
+    /** 화면에서 고른 업종. 있으면 LLM이 넘긴 업종 대신 항상 이 값으로 계산한다. */
+    private final String fixedIndustry;
 
     public AgentTools(CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
             IndustryTourismMetric industryTourismMetric, EvidenceCollector collector, int maxCalls) {
+        this(competitionMetric, areaCustomerMetric, industryTourismMetric, collector, maxCalls, null);
+    }
+
+    public AgentTools(CompetitionMetric competitionMetric, AreaCustomerMetric areaCustomerMetric,
+            IndustryTourismMetric industryTourismMetric, EvidenceCollector collector, int maxCalls,
+            String fixedIndustry) {
+        this.fixedIndustry = fixedIndustry;
         this.competitionMetric = competitionMetric;
         this.areaCustomerMetric = areaCustomerMetric;
         this.industryTourismMetric = industryTourismMetric;
@@ -41,7 +50,7 @@ public class AgentTools {
             @ToolParam(description = "업종 코드: CAFE, KOREAN, CHINESE, JAPANESE, WESTERN, PUB, FASTFOOD") String industry,
             @ToolParam(description = "반경(m). 반경 점포 수가 필요할 때만, 보통 500", required = false) Integer radiusM) {
         return call("competition", () -> {
-            var result = competitionMetric.competition(area, industry, radiusM);
+            var result = competitionMetric.competition(area, industry(industry), radiusM);
             collector.add(result);
             return result;
         });
@@ -70,10 +79,21 @@ public class AgentTools {
             @ToolParam(description = "업종 코드: CAFE, KOREAN, CHINESE, JAPANESE, WESTERN, PUB, FASTFOOD") String industry,
             @ToolParam(description = "최근 몇 개월. 기본 12", required = false) Integer months) {
         return call("industryTourism", () -> {
-            var result = industryTourismMetric.industryTourism(industry, months == null ? 12 : months);
+            var result = industryTourismMetric.industryTourism(industry(industry), months == null ? 12 : months);
             collector.add(result);
             return result;
         });
+    }
+
+    /** 화면 조건의 업종과 숫자가 어긋나지 않도록, 고른 업종이 있으면 LLM 값은 무시한다. */
+    private String industry(String requested) {
+        if (fixedIndustry == null) {
+            return requested;
+        }
+        if (!fixedIndustry.equals(requested)) {
+            log.info("도구 업종 {} 대신 고른 업종 {}로 계산", requested, fixedIndustry);
+        }
+        return fixedIndustry;
     }
 
     private Object call(String tool, java.util.function.Supplier<Object> body) {

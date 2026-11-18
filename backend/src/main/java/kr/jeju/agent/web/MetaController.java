@@ -32,9 +32,10 @@ public class MetaController {
     /** S1은 CSV에 날짜 열이 없어 원본 스냅샷 날짜를 그대로 쓴다 (01_raw.sql 주석). */
     private static final String STORE_AS_OF = "2025-09-18";
 
+    /** 어떤 업종을 골라도 맞는 문장만 쓴다. 업종 이름을 넣으면 다른 업종을 고른 사람에게 엉뚱한 예시가 된다. */
     private static final Map<String, List<String>> EXAMPLES = Map.of(
             "STARTUP", List.of(
-                    "이 동네에 카페 차려도 괜찮을까요?",
+                    "이 동네에 가게를 차려도 괜찮을까요?",
                     "손님은 도민이 많나요, 관광객이 많나요?",
                     "이 업종은 계절을 많이 타나요?"),
             "EXISTING", List.of(
