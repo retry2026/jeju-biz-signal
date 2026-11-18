@@ -2,12 +2,15 @@ package kr.jeju.agent.agent;
 
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,13 +120,14 @@ public class AgentService implements ChatAgent {
 
     AgentAnswer assemble(AgentReply reply, EvidenceCollector collector, MyStoreInput myStore, boolean salesQuestion) {
         String type = reply.type() != null && TYPES.contains(reply.type()) ? reply.type() : "ANSWER";
+        String summary = readable(reply.summary());
         List<AgentAnswer.Section> sections = orEmpty(reply.sections()).stream()
-                .map(s -> new AgentAnswer.Section(s.id(), s.title(), s.text()))
+                .map(s -> new AgentAnswer.Section(s.id(), s.title(), readable(s.text())))
                 .toList();
-        List<String> suggestions = orEmpty(reply.suggestions()).stream().limit(3).toList();
+        List<String> suggestions = orEmpty(reply.suggestions()).stream().limit(3).map(AgentService::readable).toList();
 
         if (!"ANSWER".equals(type)) {
-            return new AgentAnswer(type, reply.summary(), "ASK_BACK".equals(type) ? List.of() : sections,
+            return new AgentAnswer(type, summary, "ASK_BACK".equals(type) ? List.of() : sections,
                     List.of(), List.of(), List.of(), suggestions, "ASK_BACK".equals(type) ? askFor(reply.askFor()) : null);
         }
 
@@ -134,7 +138,7 @@ public class AgentService implements ChatAgent {
             chartIds = Stream.concat(Stream.of("myStoreVsArea"), chartIds.stream()).toList();
         }
         chartIds = chartIds.stream().limit(MAX_CHARTS).toList();
-        return new AgentAnswer(type, reply.summary(), sections,
+        return new AgentAnswer(type, summary, sections,
                 chartAssembler.build(chartIds, collector.snapshot(myStore)),
                 collector.evidence(), limitBuilder.build(collector.metas()), suggestions, null);
     }
@@ -182,6 +186,55 @@ public class AgentService implements ChatAgent {
                 .append(" 숫자끼리 더하거나 빼서 새 숫자를 만들지 않는다 (관광객 합계는 touristShare를 그대로 쓴다).")
                 .append("\n3. 데이터에 없는 질문이면 도구 없이 REFUSE로 답한다.");
         return sb.toString();
+    }
+
+    /** 프롬프트와 도구 결과에 쓰는 영어 이름. LLM이 답변 문장에 그대로 옮겨 쓰면 화면에 보이므로 우리말로 바꾼다. */
+    private static final Map<String, String> READABLE_NAMES = Map.ofEntries(
+            Map.entry("myStoreVsArea", "내 가게 비교 차트"),
+            Map.entry("areaMonthly", "동네 월별 결제 차트"),
+            Map.entry("customerMix", "손님 구성 차트"),
+            Map.entry("ticketSize", "건당 결제액 차트"),
+            Map.entry("touristFlow", "입도객 흐름 차트"),
+            Map.entry("industrySeason", "업종 계절 차트"),
+            Map.entry("areaCustomers", "동네 손님 데이터"),
+            Map.entry("industryTourism", "업종 데이터"),
+            Map.entry("touristShare", "관광객 비중"),
+            Map.entry("residentShare", "도민 비중"),
+            Map.entry("domesticShare", "내국인 관광객 비중"),
+            Map.entry("foreignShare", "외국인 관광객 비중"),
+            Map.entry("yoyChange", "전년 대비 변화"),
+            Map.entry("ticketYoy", "건당 결제액 전년 대비"));
+    private static final Pattern ENGLISH_NAME = Pattern.compile(
+            "(?<![A-Za-z])`?(" + String.join("|", READABLE_NAMES.keySet()) + "|" + String.join("|", InputGuard.INDUSTRY_NAMES.keySet())
+                    + ")`?(\\s*차트)?(?![A-Za-z])([이가은는을를과와](?![가-힣]))?");
+
+    static String readable(String text) {
+        if (text == null) {
+            return null;
+        }
+        Matcher m = ENGLISH_NAME.matcher(text);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String name = READABLE_NAMES.getOrDefault(m.group(1), InputGuard.INDUSTRY_NAMES.get(m.group(1)));
+            // "PUB 차트"처럼 업종 뒤에 붙은 "차트"는 지우지 않는다.
+            String word = name + (m.group(2) != null && !name.endsWith("차트") ? m.group(2) : "");
+            String particle = m.group(3) == null ? "" : particle(word, m.group(3));
+            m.appendReplacement(sb, Matcher.quoteReplacement(word + particle));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** 바꾼 말의 받침에 맞춰 조사를 고른다 (비중이, 차트가, 주점은, 카페는). */
+    private static String particle(String word, String original) {
+        char last = word.charAt(word.length() - 1);
+        boolean batchim = last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0;
+        return switch (original) {
+            case "이", "가" -> batchim ? "이" : "가";
+            case "은", "는" -> batchim ? "은" : "는";
+            case "을", "를" -> batchim ? "을" : "를";
+            default -> batchim ? "과" : "와";
+        };
     }
 
     /** 같은 달의 작년 매출이 함께 있어야 차트가 내 가게 전년 대비를 계산한다. */

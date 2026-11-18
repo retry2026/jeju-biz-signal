@@ -137,6 +137,20 @@ class AgentServiceTest {
     }
 
     @Test
+    void 답변_문장에_섞인_차트_id와_업종_코드를_우리말로_바꾼다() {
+        assertThat(AgentService.readable("`myStoreVsArea` 차트를 보면 PUB 업종은 touristShare가 낮습니다."))
+                .isEqualTo("내 가게 비교 차트를 보면 주점 업종은 관광객 비중이 낮습니다.");
+        assertThat(AgentService.readable("PUBLIC 데이터")).isEqualTo("PUBLIC 데이터");
+        assertThat(AgentService.readable("yoyChange는 -3%, CAFE와 KOREAN을 비교")).isEqualTo("전년 대비 변화는 -3%, 카페와 한식을 비교");
+
+        LlmGateway llm = (s, sys, u, t) -> new AgentReply("REFUSE", "areaMonthly는 없습니다.", List.of(),
+                List.of(), List.of("CAFE 손님 구성은?"), null);
+        AgentAnswer r = service(llm).answer(request("STARTUP", "메뉴 가격 알려줘", null));
+        assertThat(r.summary()).isEqualTo("동네 월별 결제 차트는 없습니다.");
+        assertThat(r.suggestions()).containsExactly("카페 손님 구성은?");
+    }
+
+    @Test
     void 지표가_실패하면_예외_대신_LLM이_읽을_문장을_돌려준다() {
         EvidenceCollector collector = new EvidenceCollector();
         AgentTools tools = new AgentTools(db.competition, db.areaCustomers, db.industryTourism, collector, 6);
