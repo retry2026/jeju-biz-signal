@@ -12,7 +12,7 @@ import {
 } from 'chart.js'
 import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import type { ChatChart } from '../api'
-import { scopeLabel } from '../resultMetrics.js'
+import { chartUnit, scopeLabel } from '../resultMetrics.js'
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Legend)
 
@@ -37,13 +37,14 @@ const grid = {
 
 export function ChartView({ chart }: ChartViewProps) {
   const lineColors = [SEA, TANGERINE, GRAY]
+  const { unit, scale } = chartUnit(chart)
   const data = {
     labels: chart.labels,
     datasets: chart.datasets.map((dataset, index) => {
       const color = dataset.dashed ? GRAY : lineColors[index % lineColors.length]
       return {
         label: dataset.label,
-        data: dataset.data,
+        data: dataset.data.map(scale),
         borderColor: chart.type === 'doughnut' ? '#ffffff' : color,
         backgroundColor: chart.type === 'doughnut'
           ? [SEA, TANGERINE, GRAY]
@@ -66,7 +67,7 @@ export function ChartView({ chart }: ChartViewProps) {
         {chart.type === 'bar' && <Bar data={data as ChartData<'bar', (number | null)[], string>} options={{ ...common, scales: grid, plugins: { legend: { display: chart.datasets.length > 1 } } }} />}
         {chart.type === 'doughnut' && <Doughnut data={data as ChartData<'doughnut', (number | null)[], string>} options={{ ...common, cutout: '62%', plugins: { legend: { position: 'right' } } }} />}
       </div>
-      <p className="chart-source">단위 {chart.unit} · {chart.source} · {scopeLabel(chart.scope)}</p>
+      <p className="chart-source">단위 {unit} · {chart.source} · {scopeLabel(chart.scope)}</p>
     </figure>
   )
 }
