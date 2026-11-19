@@ -9,12 +9,9 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,10 +20,15 @@ import org.springframework.stereotype.Component;
  *
  * SQL 안의 ${DATA_DIR}는 app.data-dir의 절대경로로 바꾼다.
  * read_csv의 상대경로는 실행 위치에 따라 달라지므로 절대경로로 고정한다.
+ *
+ * ApplicationRunner가 아니라 InitializingBean으로 적재한다.
+ * ApplicationRunner는 톰캣이 요청을 받기 시작한 뒤에 돌아서, 적재가 끝나기 전 약 2초 동안
+ * /api/meta가 빈 목록을 돌려주고 지역 코드 검증도 건너뛰었다.
+ * 빈 초기화 단계에서 적재하면 포트가 열리기 전에 끝난다.
+ * 평가 실행기(EvalRunner)는 ApplicationRunner라 여전히 적재 뒤에 돈다.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
-public class DataLoader implements ApplicationRunner {
+public class DataLoader implements InitializingBean {
 
     private static final Logger log = LoggerFactory.getLogger(DataLoader.class);
 
@@ -43,7 +45,7 @@ public class DataLoader implements ApplicationRunner {
     }
 
     @Override
-    public void run(ApplicationArguments args) throws IOException {
+    public void afterPropertiesSet() throws IOException {
         if (!Files.isDirectory(sqlDir)) {
             log.warn("SQL 폴더가 없어 데이터 적재를 건너뜁니다: {}", sqlDir.toAbsolutePath());
             return;
