@@ -9,17 +9,17 @@
       │  GET /api/meta, POST /api/chat
       ▼
 [Spring Boot 앱 하나 (java -jar)]
-  web/      ChatController, MetaController, SessionStore        ④
+  web/      ChatController, MetaController, SessionStore
       │  ChatAgent.answer(ChatRequest)
       ▼
-  agent/    InputGuard → AgentService(ChatClient) → 응답 조립     ③
+  agent/    InputGuard → AgentService(ChatClient) → 응답 조립
       │        │  @Tool 호출               ▲ chartIds
       │        ▼                           │
-  metric/   CompetitionMetric, AreaCustomerMetric, IndustryTourismMetric   ②
-  chart/    ChartAssembler (도구 결과 → Chart.js JSON)                    ②
+  metric/   CompetitionMetric, AreaCustomerMetric, IndustryTourismMetric
+  chart/    ChartAssembler (도구 결과 → Chart.js JSON)
       │  JdbcClient SQL
       ▼
-  config/   DuckDbConfig, DataLoader                                       ①
+  config/   DuckDbConfig, DataLoader
       │  시작 시 data/sql/*.sql 실행
       ▼
 [data/jeju.duckdb]  ← data/raw/*.csv (S1~S4)
@@ -64,13 +64,13 @@
 
 ## 3. 모듈별 요구사항
 
-### config (①)
+### config
 
 - `DuckDbConfig`: `${DATA_DIR}/jeju.duckdb`로 `DataSource`를 만든다. 기본 `DATA_DIR`은 `../data`.
 - `DataLoader`: 앱 시작 시 `jeju.duckdb`가 없거나 `data/sql/*.sql`이 더 최신이면, SQL을 파일 이름 순서로 실행해 다시 만든다.
 - SQL 4단계: `01_raw`(CSV → 원본 테이블), `02_mapping`(업종·지역 대응표), `03_clean`(걸러내기, `filter_log`), `04_views`(뷰 4개).
 
-### metric (②)
+### metric
 
 - 서비스 3개, 메서드는 `API명세.md` 5장 시그니처 그대로.
 - 뷰만 조회한다. 원본 테이블을 직접 읽지 않는다.
@@ -79,13 +79,13 @@
 - `MetricMeta`에 출처, 기간, 기준(AREA/RADIUS/JEJU), 표본 부족 여부를 채운다.
 - 반경 거리는 하버사인 공식(SQL)으로 계산한다. 공간 확장은 쓰지 않는다.
 
-### chart (②)
+### chart
 
 - `ChartAssembler.build(List<String> chartIds, EvidenceSnapshot results)` → `List<Chart>`.
 - 차트 7종 (`API명세.md` 3장). 필요한 도구 결과가 없는 차트 ID는 건너뛴다.
 - 숫자를 가공하지 않는다 (반올림만 소수 첫째 자리).
 
-### agent (③)
+### agent
 
 - `ChatAgent` 인터페이스: `ChatResponse answer(ChatRequest request)`.
 - `AgentTools`: 도구 3개. `@Tool` 설명에 "언제 쓰는지, 무엇을 돌려주는지, 기준이 동네인지 제주 전체인지"를 쓴다.
@@ -95,7 +95,7 @@
 - 프롬프트: `prompts/system.md`(역할, 원칙, 도구 사용 규칙, 답변 구조), `prompts/refusal.md`(거절 목록과 대안).
 - LLM 오류 시 `LLM_UNAVAILABLE` 예외를 던진다.
 
-### web (④)
+### web
 
 - `POST /api/chat`, `GET /api/meta` (`API명세.md` 2~3장).
 - 요청 검증: `jakarta.validation`. 코드값은 `ref_area`, `ref_industry`에 있는지 확인.
@@ -103,7 +103,7 @@
 - `ApiExceptionHandler`: 400 `INVALID_REQUEST`, 503 `LLM_UNAVAILABLE`, 500 `INTERNAL_ERROR`.
 - `FakeChatAgent`: `mocks/*.json`을 돌려주는 개발용 구현. 프로필 `fake`에서만 활성.
 
-### frontend (④)
+### frontend
 
 - 화면 5개, 결과 섹션 순서는 PRD FR-41.
 - `api.ts`에서만 서버를 부른다. 타임아웃 60초.
@@ -111,7 +111,7 @@
 - `useIdleReset`: 2분 무조작이면 처음 화면, 새 `sessionId`.
 - 빌드 결과는 `backend/src/main/resources/static`.
 
-### eval (③)
+### eval
 
 - `EvalRunner` (Java main): `eval/questions.yaml`을 읽어 실행 중인 앱의 `/api/chat`을 질문마다 N번(기본 3) 호출.
 - 채점: 응답 `type`이 기대와 같은지, 기대 도구가 `evidence`에 있는지, `eval/gold/*.sql`을 DuckDB에 실행한 값이 본문 숫자와 허용 오차 안인지.
