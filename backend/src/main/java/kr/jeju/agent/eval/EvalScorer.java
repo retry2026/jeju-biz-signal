@@ -21,7 +21,11 @@ import kr.jeju.agent.chart.ChartDataset;
 public class EvalScorer {
 
     private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}(?:-\\d{2})?");
+    private static final Pattern KOREAN_DATE = Pattern.compile("(?:\\d{4}년\\s*)?\\d{1,2}월\\s*\\d{1,2}일|\\d{4}년\\s*\\d{1,2}월");
     private static final Pattern NUMBER = Pattern.compile("-?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|-?\\d+(?:\\.\\d+)?");
+    /** 억·만 단위를 섞은 금액 (만은 반드시 있어야 함). 예: "3만 2,701원", "1억 2,000만 원", "1,500만원" */
+    private static final Pattern KOREAN_AMOUNT = Pattern.compile(
+            "(?:(\\d[\\d,]*)\\s*억\\s*)?(\\d[\\d,]*)\\s*만\\s*(\\d[\\d,]*(?=\\s*원))?");
 
     public QuestionScore score(EvalQuestion q, AgentAnswer answer, Map<String, Double> goldValues) {
         return score(q, answer, goldValues, List.of());
@@ -68,11 +72,30 @@ public class EvalScorer {
     static List<Double> numbers(String text) {
         List<Double> numbers = new ArrayList<>();
         // "2025-09", "2026-10-16" 같은 기간 표기는 숫자로 세지 않는다 (-09를 음수로 읽는 오탐 방지).
-        Matcher m = NUMBER.matcher(DATE.matcher(text).replaceAll(" "));
+        // "2026년 10월 20일"처럼 한글로 쓴 날짜도 숫자로 세지 않는다.
+        String noDates = KOREAN_DATE.matcher(DATE.matcher(text).replaceAll(" ")).replaceAll(" ");
+        String cleaned = koreanAmounts(noDates);
+        Matcher m = NUMBER.matcher(cleaned);
         while (m.find()) {
             numbers.add(Double.parseDouble(m.group().replace(",", "")));
         }
         return numbers;
+    }
+
+    /** "3만 2,701원", "1억 2,000만 원", "1,500만원"처럼 억·만을 섞어 쓴 금액을 숫자 하나로 바꾼다. */
+    static String koreanAmounts(String text) {
+        Matcher m = KOREAN_AMOUNT.matcher(text);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            long value = part(m.group(1)) * 100_000_000L + part(m.group(2)) * 10_000L + part(m.group(3));
+            m.appendReplacement(sb, Long.toString(value));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    private static long part(String digits) {
+        return digits == null ? 0 : Long.parseLong(digits.replace(",", ""));
     }
 
     private static List<Double> allowedNumbers(AgentRequest request, AgentAnswer answer, Map<String, Double> gold) {
@@ -84,6 +107,8 @@ public class EvalScorer {
         }
         allowed.addAll(numbers(Objects.toString(request.message(), "")));
         allowed.add(100.0); // 계절 지수의 기준값 "연평균 100"
+        allowed.add(500.0); // 반경 설정값 "반경 500m" (계산 결과가 아니라 도구에 넘긴 값)
+        allowed.add(24.0);  // 표본 부족 시 넓히는 기간 "24개월"
         for (AgentRequest.MonthlySale sale : request.monthlySales()) {
             if (sale.amount() != null) {
                 allowed.add(sale.amount().doubleValue());
