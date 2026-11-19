@@ -92,6 +92,28 @@ class EvalScorerTest {
     }
 
     @Test
+    void 한글로_쓴_날짜는_숫자로_세지_않는다() {
+        assertThat(EvalScorer.numbers("최근 4주(2026년 10월 20일 ~ 11월 16일) 13.6% 감소")).containsExactly(4.0, 13.6);
+        assertThat(EvalScorer.numbers("2025년 10월부터 8월 지수 120.7")).containsExactly(8.0, 120.7);
+    }
+
+    @Test
+    void 만과_억을_섞어_쓴_금액을_숫자_하나로_읽는다() {
+        assertThat(EvalScorer.numbers("도민 3만 2,701원, 관광객 3만8,070원")).containsExactly(32701.0, 38070.0);
+        assertThat(EvalScorer.numbers("1,500만원에서 1,380만 원으로")).containsExactly(15_000_000.0, 13_800_000.0);
+        assertThat(EvalScorer.numbers("1억 2,000만 원")).containsExactly(120_000_000.0);
+        assertThat(EvalScorer.numbers("44곳, 2.6배")).containsExactly(44.0, 2.6);
+    }
+
+    @Test
+    void 반경_설정값과_확장_기간은_근거_없는_숫자로_세지_않는다() {
+        QuestionScore s = scorer.score(question("ANSWER", List.of(), List.of()),
+                answer("ANSWER", "반경 500m 안 점포를 셌고, 표본이 적어 24개월로 넓혔습니다.", List.of(), List.of()), Map.of());
+
+        assertThat(s.unsupported()).isEmpty();
+    }
+
+    @Test
     void 쉼표가_있는_금액도_숫자로_읽는다() {
         assertThat(EvalScorer.numbers("건당 14,200원, -6.3%")).containsExactly(14200.0, -6.3);
     }
